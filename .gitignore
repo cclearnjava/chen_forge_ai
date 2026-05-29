@@ -1,0 +1,48 @@
+# env & secrets
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# next.js
+.next/
+out/
+.next
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+*.db
+*.sqlite3
+
+# build
+dist/
+build/
+
+# ide
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# os
+.DS_Store
+Thumbs.db
+
+# wow-harness runtime (not source)
+.towow/state/
+.towow/guard/
+.towow/metrics/
+.towow/logs/
+.towow/progress/
+.towow/proposals/

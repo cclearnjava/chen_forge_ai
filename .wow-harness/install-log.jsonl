@@ -1,0 +1,8 @@
+{"ts": "2026-04-12T08:45:17", "event": "scaffold_created", "details": "paths=10"}
+{"ts": "2026-04-12T08:45:17", "event": "gitignore_appended", "details": ""}
+{"ts": "2026-04-12T08:45:17", "event": "index_slot_filled", "details": ""}
+{"ts": "2026-04-12T08:45:17", "event": "install_complete", "details": "tier=drop-in projects=1"}
+{"ts": "2026-05-29T00:24:14", "event": "bundle_copied", "details": "tier=drop-in"}
+{"ts": "2026-05-29T00:24:14", "event": "scaffold_created", "details": "paths=14"}
+{"ts": "2026-05-29T00:24:14", "event": "gitignore_appended", "details": ""}
+{"ts": "2026-05-29T00:24:14", "event": "install_complete", "details": "tier=drop-in projects=1"}

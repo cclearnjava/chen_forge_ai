@@ -1,0 +1,2 @@
+{"ts": "2026-04-12T08:43:41", "event": "sanitize_on_read", "category": "NETWORK", "file_path": "/Users/cola/Documents/2026/wow-harness/README.md", "outcome": "warn", "reason": "1 finding(s)"}
+{"ts": "2026-05-29T07:54:41", "event": "sanitize_on_read", "category": "PROTOCOL_INTERNAL", "file_path": "/Users/cola/Documents/2026/ChenForgeAI/docs/api-contract.md", "outcome": "warn", "reason": "1 finding(s)"}
