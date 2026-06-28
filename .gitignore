@@ -46,3 +46,12 @@ Thumbs.db
 .towow/logs/
 .towow/progress/
 .towow/proposals/
+.wow-harness/state/
+.wow-harness/guard/
+.wow-harness/metrics/
+.wow-harness/logs/
+.wow-harness/progress/
+.wow-harness/proposals/
+
+# local browser/test traces
+.playwright-mcp/

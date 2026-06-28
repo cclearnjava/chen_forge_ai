@@ -18,3 +18,12 @@
 - 创建 `docs/api-contract.md`，冻结 MVP 前后端接口契约。
 - 初始化 git 仓库，并创建 `codex/chenforge-mvp-shell` 开发分支。
 - 补充 `CLAUDE.md` 项目概述、技术路线、治理产物和 path-scoped rules 列表。
+
+## 2026-05-31
+
+- 确认 MVP 登录方案为邮箱验证码登录，手机号验证码不进入第一版。
+- 确认客户正式发送渠道 MVP 先使用邮件，但通过 Delivery Center 保留多通道扩展能力。
+- 新增登录、需求提交、AI 草案、人工审批和邮件发送闭环设计文档。
+- 更新 API contract，加入邮箱验证码、附件、DeliveryJob、NotificationEvent、发送状态和新 Agent 输出契约。
+- 更新 ADR-002 和 ADR-003，把“AI 生成方案，人工审批修改，批准后发送”纳入核心架构不变量。
+- 更新一周任务计划，补充 Auth、附件上传、内部通知、Delivery Center 和邮件发送测试任务。

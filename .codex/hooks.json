@@ -1,0 +1,113 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$(bash scripts/hooks/find-project-root.sh)\" && python3 scripts/deploy-guard.py",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$(bash scripts/hooks/find-project-root.sh)\" && python3 scripts/hooks/tool-call-counter.py 2>/dev/null || true",
+            "timeout": 3
+          }
+        ]
+      },
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$(bash scripts/hooks/find-project-root.sh)\" && python3 scripts/hooks/review-agent-gatekeeper.py",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$(bash scripts/hooks/find-project-root.sh)\" && python3 scripts/hooks/sanitize-on-read.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$(bash scripts/hooks/find-project-root.sh)\" && python3 scripts/guard-feedback.py",
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "cd \"$(bash scripts/hooks/find-project-root.sh)\" && python3 scripts/hooks/loop-detection.py",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "cd \"$(bash scripts/hooks/find-project-root.sh)\" && python3 scripts/hooks/risk-tracker.py 2>/dev/null || true",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$(bash scripts/hooks/find-project-root.sh)\" && bash scripts/hooks/precompact.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$(bash scripts/hooks/find-project-root.sh)\" && python3 scripts/hooks/session-start-reset-risk.py",
+            "timeout": 3
+          },
+          {
+            "type": "command",
+            "command": "cd \"$(bash scripts/hooks/find-project-root.sh)\" && python3 scripts/hooks/session-start-magic-docs.py",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "cd \"$(bash scripts/hooks/find-project-root.sh)\" && python3 scripts/hooks/session-start-toolkit-reminder.py",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$(bash scripts/hooks/find-project-root.sh)\" && python3 scripts/hooks/stop-evaluator.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

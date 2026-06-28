@@ -6,7 +6,7 @@ Accepted
 
 ## 背景
 
-ChenForge AI 的 Agent 不是完全自治员工，而是用于生成可审核交付物的工作流角色。MVP 必须证明“线索 -> 诊断 -> Proposal -> 人工审批”的闭环，同时避免真实 LLM 的不稳定性阻塞开发和测试。
+ChenForge AI 的 Agent 不是完全自治员工，而是用于生成可审核交付物的工作流角色。MVP 必须证明“客户需求 -> AI 需求理解 -> 客户回复草稿 -> 方案草案 -> 人工审批 -> 发送”的闭环，同时避免真实 LLM 的不稳定性阻塞开发和测试。
 
 ## 决策
 
@@ -19,6 +19,8 @@ ChenForge AI 的 Agent 不是完全自治员工，而是用于生成可审核交
   - 质量审核 Agent。
 - 所有 Agent 输出都写入 Artifact。
 - 所有对客输出都必须创建 Decision，并标记为需要人工审批。
+- Agent 可以生成客户回复草稿和方案草案，但不能直接发送给客户。
+- 对客发送由 Delivery Center 执行，MVP 只实现邮件通道。
 - LLM provider 必须先实现 mock provider，再接 OpenAI-compatible provider。
 - Agent 不能直接修改业务状态，所有状态变更必须通过 workflow runner。
 
@@ -44,6 +46,7 @@ ChenForge AI 的 Agent 不是完全自治员工，而是用于生成可审核交
 
 - Agent 输出建议，不拥有最终决策权。
 - 对客表达不能绕过 ApprovalGate。
+- 对客发送不能绕过 Delivery Center。
 - prompt 版本、模型名称、原始响应、解析结果必须随 Artifact 保存。
+- 客户回复草稿、方案草案、已发送内容必须保留版本。
 - 测试默认使用 mock provider，真实 provider 不进入默认测试路径。
-

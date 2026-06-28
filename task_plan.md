@@ -2,7 +2,7 @@
 
 ## 目标
 
-在一周内把 ChenForge AI 做成一个可用的一人 AI 咨询公司门户：包括面向 ToB 老板的高质量官网、线索提交入口、私有运营后台，以及第一个能把客户业务问题转成诊断摘要和 PoC 建议的 Agent 工作流。
+在一周内把 ChenForge AI 做成一个可用的一人 AI 咨询公司门户：包括面向 ToB 老板的高质量官网、邮箱验证码登录、需求提交入口、私有运营后台，以及第一个能把客户业务问题转成需求理解、客户回复草稿、方案草案和 PoC 建议的 Agent 工作流。
 
 ## MVP 范围
 
@@ -10,17 +10,19 @@
 
 - 面向企业老板的公开官网。
 - 展示 AI Agent 工作流、RAG、ChatBI、AI 软件 MVP 交付等服务。
-- 线索提交表单，并把数据保存到后端数据库。
+- 邮箱验证码登录或注册。
+- 需求提交表单，并把数据保存到后端数据库。
+- 文档和截图附件上传，视频使用链接形式提交。
 - 私有后台，用来查看线索、诊断摘要、决策项和生成物。
-- 一条可运行的 Agent 工作流：线索诊断 -> PoC 建议 -> Proposal 草稿。
-- 所有对外输出前必须有人类审批。
+- 一条可运行的 Agent 工作流：需求理解 -> 客户回复草稿 -> 方案草案 -> PoC 建议。
+- 所有对外输出前必须有人类审批，审批后 MVP 通过邮件发送给客户。
+- 内部提醒通过飞书或企业微信群机器人通知负责人。
 - 有基本的本地启动和部署路径。
 
 ### 本周可纳入但不阻塞 MVP
 
-- 管理员登录。
 - 生成物版本历史。
-- 邮件或联系方式通知。
+- 客户回复草稿的多版本对比。
 - 案例占位内容。
 - CTA 和表单转化事件统计。
 
@@ -29,6 +31,8 @@
 - 完整自治的多 Agent 公司。
 - 支付集成。
 - 客户门户。
+- 手机号验证码。
+- 视频大文件上传和转码。
 - 复杂 CRM。
 - 实时协作。
 - 通用 Agent Builder。
@@ -41,6 +45,9 @@
 - ORM：SQLAlchemy。
 - Agent 工作流：第一版锁定为轻量自定义流程；LangGraph 不进入本周 MVP。
 - LLM 供应商：OpenAI-compatible adapter，通过环境变量配置。
+- 邮箱验证码和客户发送：MVP 使用 SMTP 或邮件服务 provider，后续可替换。
+- 内部通知：飞书或企业微信群机器人 Webhook。
+- 附件存储：本地开发使用 `backend/storage/uploads`，正式环境预留对象存储适配。
 - 部署：本周锁定为前端 Vercel、后端 Render。单 VPS 不进入本周 MVP。
 
 ## 工程策略
@@ -51,9 +58,12 @@
 - [ ] 后端核心逻辑必须先写测试再实现：
   - [ ] 数据模型和 repository。
   - [ ] Lead API。
+  - [ ] 邮箱验证码登录。
+  - [ ] 附件上传。
   - [ ] Agent workflow。
   - [ ] mock LLM provider。
   - [ ] 决策审批。
+  - [ ] Delivery Center 邮件发送。
 - [ ] 前端公共官网允许先实现再补组件测试，但线索提交和后台审批链路必须有测试。
 - [ ] 后端测试框架：
   - [ ] `pytest`。
@@ -105,6 +115,7 @@
   - [ ] 运行诊断。
   - [ ] 展示生成物。
   - [ ] 批准或暂缓决策。
+  - [ ] 批准并发送邮件。
 
 ## 一周排期
 
@@ -128,7 +139,10 @@
   - [ ] 交付保障。
   - [ ] 线索提交 CTA。
 - [ ] 增加服务详情页或可展开服务面板。
-- [ ] 增加“从一个业务流程开始”的线索提交表单。
+- [ ] 增加邮箱验证码登录入口。
+- [ ] 增加“从一个业务流程开始”的需求提交表单。
+- [ ] 增加文档和截图上传入口。
+- [ ] 增加视频链接字段。
 - [ ] 增加案例占位：
   - [ ] 企业知识库问答。
   - [ ] ChatBI 数据运营。
@@ -140,17 +154,23 @@
 - [ ] 创建 FastAPI 后端。
 - [ ] 创建数据库模型：
   - [ ] Lead，线索。
+  - [ ] LeadAttachment，附件。
+  - [ ] VerificationCode，邮箱验证码。
   - [ ] DiagnosisBrief，诊断摘要。
   - [ ] AgentTask，Agent 任务。
   - [ ] Decision，人工决策项。
   - [ ] Artifact，生成物。
+  - [ ] DeliveryJob，对客发送任务。
+  - [ ] NotificationEvent，内部通知事件。
 - [ ] 实现线索提交 API。
+- [ ] 实现邮箱验证码发送和校验 API。
+- [ ] 实现附件上传 API。
 - [ ] 实现后台用的线索列表和线索详情 API。
 - [ ] 实现生成物创建和读取 API。
 - [ ] 添加本地 SQLite 数据库。
 - [ ] 添加 API 错误处理和请求校验。
 - [ ] 定义前后端 API contract 文档。
-- [ ] 做第一次前后端联调：公开表单提交 -> 后端保存线索 -> 后台列表读取。
+- [ ] 做第一次前后端联调：邮箱验证码登录 -> 公开表单提交 -> 附件上传 -> 后端保存线索 -> 后台列表读取。
 
 ### 第 4 天：私有运营后台
 
@@ -158,7 +178,9 @@
 - [ ] 添加基础管理员访问保护。
 - [ ] 创建线索收件箱。
 - [ ] 创建线索详情页。
+- [ ] 创建附件列表和预览入口。
 - [ ] 展示生成的诊断摘要。
+- [ ] 展示客户回复草稿和方案草案。
 - [ ] 展示人工决策队列。
 - [ ] 展示生成物列表。
 - [ ] 添加状态变更：新线索、审核中、已诊断、已出方案、已联系、已归档。
@@ -172,25 +194,33 @@
 - [ ] 再接 OpenAI-compatible provider，保持同一接口。
 - [ ] 构建工作流：
   - [ ] 标准化线索输入。
+  - [ ] 读取附件元数据和视频链接。
+  - [ ] 生成需求理解。
   - [ ] 诊断业务问题。
   - [ ] 推荐第一个 PoC。
   - [ ] 估算复杂度和风险。
   - [ ] 生成客户回复草稿。
+  - [ ] 生成方案草案。
 - [ ] 把所有 Agent 输出保存成生成物。
 - [ ] 把客户可见输出标记为需要人工审批。
 - [ ] 添加重试和失败状态。
-- [ ] 做第二次前后端联调：后台触发诊断 -> 后端生成 artifact -> 前端展示 artifact 和 decision。
+- [ ] 做第二次前后端联调：后台触发需求分析 -> 后端生成需求理解、回复草稿、方案草案 -> 前端展示 artifact 和 decision。
 
 ### 第 6 天：人工审批与 Proposal 生成物
 
 - [ ] 添加 approve / defer / request rewrite 决策动作。
+- [ ] 添加 edit and approve 决策动作。
 - [ ] 添加 Proposal 草稿生成物。
 - [ ] 添加 discovery call agenda 生成物。
 - [ ] 添加实施路线图生成物。
+- [ ] 添加 Delivery Center 邮件发送。
+- [ ] 添加邮件发送状态：draft、queued、sending、sent、failed。
+- [ ] 添加飞书或企业微信内部通知。
 - [ ] 添加导出 Markdown。
 - [ ] 添加复制已审批客户回复。
 - [ ] 添加基础审计日志。
-- [ ] 联调审批链路：approve / defer / request rewrite。
+- [ ] 联调审批链路：approve / edit and approve / defer / request rewrite。
+- [ ] 联调发送链路：已审批 artifact -> DeliveryJob -> 邮件发送 -> 发送状态回写。
 - [ ] 修复前后端字段不一致、状态不一致、错误格式不一致的问题。
 
 ### 第 7 天：打磨、测试、部署
@@ -198,8 +228,11 @@
 - [ ] 做响应式设计检查。
 - [ ] 做无障碍检查。
 - [ ] 测试公开表单提交完整链路。
+- [ ] 测试邮箱验证码登录完整链路。
+- [ ] 测试附件上传限制和失败提示。
 - [ ] 测试后台线索查看完整链路。
 - [ ] 测试 Agent 工作流成功路径和失败路径。
+- [ ] 测试审批后邮件发送成功路径和失败路径。
 - [ ] 补充 README 本地启动说明。
 - [ ] 添加环境变量模板。
 - [ ] 部署，或准备部署说明。
@@ -270,12 +303,15 @@
   - [ ] AI 工作流。
   - [ ] 价值指标。
 - [ ] 联系和线索转化模块：
+  - [ ] 邮箱验证码登录。
   - [ ] 业务问题字段。
   - [ ] 期望第一阶段结果。
   - [ ] 联系人姓名。
   - [ ] 邮箱或微信。
   - [ ] 公司规模。
   - [ ] 预算和时间，可选。
+  - [ ] 文档和截图上传。
+  - [ ] 视频链接。
 
 ### 后台
 
@@ -286,6 +322,10 @@
 - [ ] 诊断摘要查看器。
 - [ ] 决策队列。
 - [ ] 生成物查看器。
+- [ ] AI 回复草稿编辑器。
+- [ ] 方案草案编辑器。
+- [ ] 邮件发送预览。
+- [ ] DeliveryJob 状态查看。
 - [ ] 状态控制。
 - [ ] 复制和导出操作。
 - [ ] 后台概览：
@@ -312,8 +352,10 @@
   - [ ] 导出 Markdown 按钮。
 - [ ] 决策工作流 UI：
   - [ ] 批准。
+  - [ ] 修改后批准。
   - [ ] 暂缓。
   - [ ] 要求重写。
+  - [ ] 批准并发送邮件。
   - [ ] 标记已联系。
 
 ### 体验细节
@@ -329,6 +371,9 @@
 - [ ] Toast 通知。
 - [ ] 保存中禁用提交按钮。
 - [ ] API 失败后保留表单输入。
+- [ ] 验证码发送后显示倒计时。
+- [ ] 附件上传失败时明确显示原因。
+- [ ] 邮件发送失败后允许后台重试。
 - [ ] 只在后台展示后端或 Agent 错误细节，不在公开页面暴露。
 - [ ] 公开表单提交成功后展示“接下来会发生什么”。
 - [ ] 后台移动端降级布局。
@@ -358,10 +403,12 @@
 - [ ] Repository / service 层。
 - [ ] Seed 示例线索。
 - [ ] 定义枚举：
-  - [ ] LeadStatus：new、reviewing、diagnosed、proposed、contacted、archived。
+  - [ ] LeadStatus：new、reviewing、diagnosed、proposed、contacted、sent、archived。
   - [ ] TaskStatus：pending、running、succeeded、failed。
-  - [ ] DecisionStatus：waiting、approved、deferred、rewrite_requested。
-  - [ ] ArtifactType：diagnosis、architecture、proposal、email、roadmap、audit。
+  - [ ] DecisionStatus：waiting、approved、edited_and_approved、deferred、rewrite_requested。
+  - [ ] ArtifactType：diagnosis、architecture、proposal、email、roadmap、audit、requirement_summary、customer_reply_draft、proposal_draft、discovery_questions、delivery_roadmap、sent_message。
+  - [ ] DeliveryChannel：email、feishu、wecom、sms、client_portal、manual_copy。
+  - [ ] DeliveryStatus：draft、queued、sending、sent、failed、cancelled。
 - [ ] 添加时间戳：
   - [ ] created_at。
   - [ ] updated_at。
@@ -371,17 +418,26 @@
 ### 核心资源
 
 - [ ] Lead 创建、列表、详情、更新。
+- [ ] LeadAttachment 创建、列表。
+- [ ] VerificationCode 创建、校验、过期。
 - [ ] DiagnosisBrief 创建、列表、详情。
 - [ ] AgentTask 创建、列表、更新。
 - [ ] Decision 创建、列表、更新。
 - [ ] Artifact 创建、列表、详情。
+- [ ] DeliveryJob 创建、发送、查询、重试。
+- [ ] NotificationEvent 创建、发送、查询。
 - [ ] AuditLog 创建、列表。
+- [ ] Auth endpoints：
+  - [ ] `POST /api/v1/auth/email/start`。
+  - [ ] `POST /api/v1/auth/email/verify`。
 - [ ] Lead endpoints：
   - [ ] `POST /api/v1/leads`。
   - [ ] `GET /api/v1/leads`。
   - [ ] `GET /api/v1/leads/{lead_id}`。
   - [ ] `PATCH /api/v1/leads/{lead_id}`。
+  - [ ] `POST /api/v1/leads/{lead_id}/attachments`。
 - [ ] Agent endpoints：
+  - [ ] `POST /api/v1/leads/{lead_id}/run-intake-response`。
   - [ ] `POST /api/v1/leads/{lead_id}/run-diagnosis`。
   - [ ] `POST /api/v1/leads/{lead_id}/run-proposal`。
   - [ ] `GET /api/v1/agent-tasks/{task_id}`。
@@ -394,6 +450,11 @@
   - [ ] `GET /api/v1/leads/{lead_id}/artifacts`。
   - [ ] `GET /api/v1/artifacts/{artifact_id}`。
   - [ ] `POST /api/v1/artifacts/{artifact_id}/approve`。
+  - [ ] `PATCH /api/v1/artifacts/{artifact_id}`。
+- [ ] Delivery endpoints：
+  - [ ] `POST /api/v1/delivery-jobs`。
+  - [ ] `POST /api/v1/delivery-jobs/{delivery_job_id}/send`。
+  - [ ] `GET /api/v1/delivery-jobs/{delivery_job_id}`。
 
 ### Agent 工作流
 
@@ -417,6 +478,7 @@
 - [ ] 手动重新运行 endpoint。
 - [ ] Prompt 目录：
   - [ ] `prompts/lead_diagnosis.md`。
+  - [ ] `prompts/intake_response.md`。
   - [ ] `prompts/solution_architect.md`。
   - [ ] `prompts/proposal.md`。
   - [ ] `prompts/delivery_planner.md`。
@@ -440,6 +502,10 @@
 - [ ] 输入清洗。
 - [ ] 公开表单限流或简单防刷。
 - [ ] 对外消息必须人工审批。
+- [ ] MVP 阶段 Agent 不允许直接创建已发送状态。
+- [ ] 邮件发送必须基于已审批 Artifact。
+- [ ] 验证码只保存哈希，不保存明文。
+- [ ] 附件限制文件类型和大小。
 - [ ] 公开表单防垃圾提交：
   - [ ] Honeypot 字段。
   - [ ] 最短提交时间。
@@ -452,6 +518,35 @@
   - [ ] prompt 中不包含密钥。
   - [ ] prompt 上下文只包含线索数据和已批准模板。
   - [ ] MVP 阶段不允许 Agent 直接发邮件。
+
+### Delivery Center
+
+- [ ] 定义 DeliveryProvider interface。
+- [ ] 实现 EmailDeliveryProvider。
+- [ ] 定义邮件模板渲染。
+- [ ] 创建 DeliveryJob。
+- [ ] 发送前校验 Artifact 已审批。
+- [ ] 保存最终发送内容快照。
+- [ ] 保存 provider message id。
+- [ ] 保存失败原因。
+- [ ] 支持后台重试失败发送。
+- [ ] 写入 AuditLog。
+- [ ] 为后续通道保留 provider registry：
+  - [ ] feishu。
+  - [ ] wecom。
+  - [ ] sms。
+  - [ ] client_portal。
+  - [ ] manual_copy。
+
+### 内部通知
+
+- [ ] 定义 NotificationProvider interface。
+- [ ] 实现飞书或企业微信群机器人 Webhook。
+- [ ] 新 Lead 创建后通知负责人。
+- [ ] Agent 生成失败后通知负责人。
+- [ ] 有待审批 Decision 后通知负责人。
+- [ ] DeliveryJob 发送失败后通知负责人。
+- [ ] 保存 NotificationEvent。
 
 ## Agent 工作流清单
 
