@@ -85,6 +85,30 @@ class NotificationStatus(str, enum.Enum):
     failed = "failed"
 
 
+class ConversationStatus(str, enum.Enum):
+    open = "open"
+    waiting_on_customer = "waiting_on_customer"
+    waiting_on_owner = "waiting_on_owner"
+    closed = "closed"
+
+
+class MessageSenderType(str, enum.Enum):
+    customer = "customer"
+    owner = "owner"
+    agent = "agent"
+    system = "system"
+
+
+class OpportunityStage(str, enum.Enum):
+    lead = "lead"
+    qualified = "qualified"
+    proposal = "proposal"
+    negotiation = "negotiation"
+    won = "won"
+    lost = "lost"
+    archived = "archived"
+
+
 class Lead(Base):
     __tablename__ = "leads"
 
@@ -103,6 +127,88 @@ class Lead(Base):
     status: Mapped[LeadStatus] = mapped_column(
         SAEnum(LeadStatus), default=LeadStatus.new, nullable=False, index=True
     )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+
+
+class Customer(Base):
+    __tablename__ = "customers"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    owner_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    industry: Mapped[str | None] = mapped_column(String(255))
+    company_size: Mapped[str | None] = mapped_column(String(50))
+    source_lead_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("leads.id"), index=True)
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+
+
+class Contact(Base):
+    __tablename__ = "contacts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    customer_id: Mapped[str] = mapped_column(String(36), ForeignKey("customers.id"), nullable=False, index=True)
+    name: Mapped[str | None] = mapped_column(String(255))
+    email: Mapped[str | None] = mapped_column(String(255), index=True)
+    contact_method: Mapped[str | None] = mapped_column(String(255))
+    role: Mapped[str | None] = mapped_column(String(255))
+    is_primary: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    source_lead_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("leads.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+
+
+class Conversation(Base):
+    __tablename__ = "conversations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    customer_id: Mapped[str] = mapped_column(String(36), ForeignKey("customers.id"), nullable=False, index=True)
+    lead_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("leads.id"), index=True)
+    primary_contact_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("contacts.id"), index=True)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    channel: Mapped[str] = mapped_column(String(100), nullable=False)
+    status: Mapped[ConversationStatus] = mapped_column(
+        SAEnum(ConversationStatus), default=ConversationStatus.open, nullable=False, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+
+
+class Message(Base):
+    __tablename__ = "messages"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    conversation_id: Mapped[str] = mapped_column(String(36), ForeignKey("conversations.id"), nullable=False, index=True)
+    customer_id: Mapped[str] = mapped_column(String(36), ForeignKey("customers.id"), nullable=False, index=True)
+    contact_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("contacts.id"), index=True)
+    sender_type: Mapped[MessageSenderType] = mapped_column(SAEnum(MessageSenderType), nullable=False, index=True)
+    sender_label: Mapped[str | None] = mapped_column(String(255))
+    body_markdown: Mapped[str] = mapped_column(Text, nullable=False)
+    source: Mapped[str] = mapped_column(String(100), nullable=False)
+    external_message_id: Mapped[str | None] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+
+class Opportunity(Base):
+    __tablename__ = "opportunities"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    customer_id: Mapped[str] = mapped_column(String(36), ForeignKey("customers.id"), nullable=False, index=True)
+    lead_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("leads.id"), index=True)
+    primary_contact_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("contacts.id"), index=True)
+    conversation_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("conversations.id"), index=True)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    stage: Mapped[OpportunityStage] = mapped_column(
+        SAEnum(OpportunityStage), default=OpportunityStage.lead, nullable=False, index=True
+    )
+    desired_outcome: Mapped[str | None] = mapped_column(String(255))
+    problem_summary: Mapped[str | None] = mapped_column(Text)
+    budget_range: Mapped[str | None] = mapped_column(String(50))
+    estimated_value: Mapped[int | None] = mapped_column(Integer)
+    probability: Mapped[int | None] = mapped_column(Integer)
+    next_step: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 

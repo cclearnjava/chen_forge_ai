@@ -2,8 +2,10 @@ from app.db import SessionLocal
 from app.models import (
     Lead, VerificationCode, LeadAttachment, AgentTask,
     Artifact, Decision, DeliveryJob, NotificationEvent, AuditLog,
+    Customer, Contact, Conversation, Message, Opportunity,
     LeadStatus, TaskStatus, DecisionStatus, ArtifactType,
     DeliveryChannel, DeliveryStatus, NotificationChannel, NotificationStatus,
+    ConversationStatus, MessageSenderType, OpportunityStage,
 )
 
 
@@ -193,3 +195,84 @@ def test_all_enums():
     assert len(DecisionStatus) == 5
     assert len(DeliveryStatus) == 6
     assert len(NotificationChannel) == 3
+
+
+def test_create_customer_lifecycle_models():
+    db = SessionLocal()
+    lead = Lead(
+        owner_email="founder@example.com",
+        company="陈记连锁门店",
+        contact_name="陈总",
+        contact_method="wechat: chen",
+        industry="连锁零售",
+        problem="客服重复问答多，门店销售资料整理慢",
+        desired_outcome="企业知识库 / RAG 问答",
+        company_size="50-200",
+    )
+    db.add(lead)
+    db.flush()
+
+    customer = Customer(
+        name=lead.company,
+        owner_email=lead.owner_email,
+        industry=lead.industry,
+        company_size=lead.company_size,
+        source_lead_id=lead.id,
+    )
+    db.add(customer)
+    db.flush()
+
+    contact = Contact(
+        customer_id=customer.id,
+        name=lead.contact_name,
+        email=lead.owner_email,
+        contact_method=lead.contact_method,
+        is_primary=True,
+        source_lead_id=lead.id,
+    )
+    db.add(contact)
+    db.flush()
+
+    conversation = Conversation(
+        customer_id=customer.id,
+        lead_id=lead.id,
+        primary_contact_id=contact.id,
+        title="首次 AI 落地咨询",
+        channel="web_form",
+    )
+    db.add(conversation)
+    db.flush()
+
+    message = Message(
+        conversation_id=conversation.id,
+        customer_id=customer.id,
+        contact_id=contact.id,
+        sender_type=MessageSenderType.customer,
+        sender_label=contact.name,
+        body_markdown=lead.problem,
+        source="lead_form",
+    )
+    db.add(message)
+    db.flush()
+
+    opportunity = Opportunity(
+        customer_id=customer.id,
+        lead_id=lead.id,
+        primary_contact_id=contact.id,
+        conversation_id=conversation.id,
+        title="企业知识库 PoC",
+        stage=OpportunityStage.qualified,
+        desired_outcome=lead.desired_outcome,
+        problem_summary=lead.problem,
+        next_step="由 Sales Agent 生成澄清问题",
+    )
+    db.add(opportunity)
+    db.commit()
+
+    saved = db.query(Opportunity).filter(Opportunity.id == opportunity.id).one()
+    assert saved.stage == OpportunityStage.qualified
+    assert saved.customer_id == customer.id
+    assert saved.conversation_id == conversation.id
+    assert conversation.status == ConversationStatus.open
+    assert message.sender_type == MessageSenderType.customer
+    assert contact.is_primary is True
