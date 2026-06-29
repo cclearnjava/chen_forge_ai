@@ -144,6 +144,51 @@ class RunAgentRequest(BaseModel):
     provider: str = "mock"
 
 
+class AgentProfileOut(BaseModel):
+    id: str
+    name: str
+    display_name: str
+    role: str
+    allowed_tools_json: dict | None = None
+    output_artifact_types_json: dict | None = None
+    requires_approval: bool
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AgentRunOut(BaseModel):
+    id: str
+    agent_profile_id: str
+    lead_id: str | None = None
+    opportunity_id: str | None = None
+    conversation_id: str | None = None
+    status: str
+    input_json: dict | None = None
+    output_json: dict | None = None
+    error_message: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ToolInvocationOut(BaseModel):
+    id: str
+    agent_run_id: str
+    tool_name: str
+    input_json: dict | None = None
+    output_json: dict | None = None
+    status: str
+    error_message: str | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 # ── Delivery ──
 class DeliveryJobCreate(BaseModel):
     lead_id: str

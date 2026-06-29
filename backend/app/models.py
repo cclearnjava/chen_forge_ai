@@ -31,6 +31,14 @@ class TaskStatus(str, enum.Enum):
     failed = "failed"
 
 
+class AgentRunStatus(str, enum.Enum):
+    pending = "pending"
+    running = "running"
+    succeeded = "succeeded"
+    failed = "failed"
+    cancelled = "cancelled"
+
+
 class DecisionStatus(str, enum.Enum):
     waiting = "waiting"
     approved = "approved"
@@ -227,6 +235,68 @@ class Opportunity(Base):
     customer: Mapped["Customer"] = relationship(back_populates="opportunities")
     primary_contact: Mapped["Contact | None"] = relationship()
     conversation: Mapped["Conversation | None"] = relationship()
+
+
+class AgentProfile(Base):
+    __tablename__ = "agent_profiles"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True, index=True)
+    display_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[str] = mapped_column(Text, nullable=False)
+    allowed_tools_json: Mapped[dict | None] = mapped_column(JSON)
+    output_artifact_types_json: Mapped[dict | None] = mapped_column(JSON)
+    requires_approval: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+
+    runs: Mapped[list["AgentRun"]] = relationship(back_populates="agent_profile")
+
+
+class AgentRun(Base):
+    __tablename__ = "agent_runs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    agent_profile_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("agent_profiles.id"), nullable=False, index=True
+    )
+    lead_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("leads.id"), index=True)
+    opportunity_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("opportunities.id"), index=True)
+    conversation_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("conversations.id"), index=True)
+    status: Mapped[AgentRunStatus] = mapped_column(
+        SAEnum(AgentRunStatus), default=AgentRunStatus.pending, nullable=False, index=True
+    )
+    input_json: Mapped[dict | None] = mapped_column(JSON)
+    output_json: Mapped[dict | None] = mapped_column(JSON)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+    agent_profile: Mapped["AgentProfile"] = relationship(back_populates="runs")
+    lead: Mapped["Lead | None"] = relationship()
+    opportunity: Mapped["Opportunity | None"] = relationship()
+    conversation: Mapped["Conversation | None"] = relationship()
+    tool_invocations: Mapped[list["ToolInvocation"]] = relationship(
+        back_populates="agent_run",
+        order_by="ToolInvocation.created_at",
+    )
+
+
+class ToolInvocation(Base):
+    __tablename__ = "tool_invocations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    agent_run_id: Mapped[str] = mapped_column(String(36), ForeignKey("agent_runs.id"), nullable=False, index=True)
+    tool_name: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    input_json: Mapped[dict | None] = mapped_column(JSON)
+    output_json: Mapped[dict | None] = mapped_column(JSON)
+    status: Mapped[str] = mapped_column(String(50), default="succeeded", nullable=False, index=True)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+    agent_run: Mapped["AgentRun"] = relationship(back_populates="tool_invocations")
 
 
 class VerificationCode(Base):
