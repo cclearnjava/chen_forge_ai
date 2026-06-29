@@ -35,6 +35,7 @@ def test_create_lifecycle_from_lead():
     lead = _create_lead(db)
 
     result = create_lifecycle_from_lead(db, lead.id)
+    db.commit()
 
     customer = db.query(Customer).filter(Customer.id == result["customer"]["id"]).one()
     contact = db.query(Contact).filter(Contact.id == result["contact"]["id"]).one()
@@ -77,6 +78,7 @@ def test_create_lifecycle_from_lead_is_fail_closed_for_duplicates():
     db = SessionLocal()
     lead = _create_lead(db)
     create_lifecycle_from_lead(db, lead.id)
+    db.commit()
 
     try:
         create_lifecycle_from_lead(db, lead.id)

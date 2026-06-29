@@ -7,6 +7,9 @@ from app.api.leads import router as leads_router
 from app.api.artifacts import router as artifacts_router
 from app.api.decisions import router as decisions_router
 from app.api.delivery import router as delivery_router
+from app.api.customers import router as customers_router
+from app.api.opportunities import router as opportunities_router
+from app.api.conversations import router as conversations_router
 from app.db import init_db
 
 app = FastAPI(
@@ -31,6 +34,9 @@ app.include_router(agents_router, prefix="/api/v1")
 app.include_router(artifacts_router, prefix="/api/v1")
 app.include_router(decisions_router, prefix="/api/v1")
 app.include_router(delivery_router, prefix="/api/v1")
+app.include_router(customers_router, prefix="/api/v1")
+app.include_router(opportunities_router, prefix="/api/v1")
+app.include_router(conversations_router, prefix="/api/v1")
 
 
 @app.on_event("startup")

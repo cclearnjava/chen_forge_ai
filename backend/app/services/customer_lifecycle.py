@@ -93,7 +93,7 @@ def create_lifecycle_from_lead(db: Session, lead_id: str) -> dict:
             "opportunity_id": opportunity.id,
         },
     ))
-    db.commit()
+    db.flush()
 
     return {
         "customer": {"id": customer.id},

@@ -170,6 +170,122 @@ class DeliveryJobOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# ── Customer Lifecycle ──
+class CustomerOut(BaseModel):
+    id: str
+    name: str
+    owner_email: str
+    industry: str | None = None
+    company_size: str | None = None
+    source_lead_id: str | None = None
+    notes: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ContactOut(BaseModel):
+    id: str
+    customer_id: str
+    name: str | None = None
+    email: str | None = None
+    contact_method: str | None = None
+    role: str | None = None
+    is_primary: bool
+    source_lead_id: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ConversationOut(BaseModel):
+    id: str
+    customer_id: str
+    lead_id: str | None = None
+    primary_contact_id: str | None = None
+    title: str
+    channel: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class MessageOut(BaseModel):
+    id: str
+    conversation_id: str
+    customer_id: str
+    contact_id: str | None = None
+    sender_type: str
+    sender_label: str | None = None
+    body_markdown: str
+    source: str
+    external_message_id: str | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class OpportunityOut(BaseModel):
+    id: str
+    customer_id: str
+    lead_id: str | None = None
+    primary_contact_id: str | None = None
+    conversation_id: str | None = None
+    title: str
+    stage: str
+    desired_outcome: str | None = None
+    problem_summary: str | None = None
+    budget_range: str | None = None
+    estimated_value: int | None = None
+    probability: int | None = None
+    next_step: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class LifecycleOut(BaseModel):
+    customer: CustomerOut
+    contact: ContactOut
+    conversation: ConversationOut
+    message: MessageOut
+    opportunity: OpportunityOut
+
+
+class OpportunityUpdate(BaseModel):
+    stage: str | None = None
+    next_step: str | None = None
+    estimated_value: int | None = None
+    probability: int | None = None
+    desired_outcome: str | None = None
+    problem_summary: str | None = None
+    budget_range: str | None = None
+
+
+class MessageCreate(BaseModel):
+    body_markdown: str = Field(..., min_length=1)
+    sender_type: str = "owner"
+    source: str = "manual"
+
+
+class CustomerDetailOut(CustomerOut):
+    contacts: list[ContactOut] = Field(default_factory=list)
+    opportunities: list[OpportunityOut] = Field(default_factory=list)
+    recent_conversations: list[ConversationOut] = Field(default_factory=list)
+
+
+class OpportunityDetailOut(OpportunityOut):
+    customer: CustomerOut | None = None
+    primary_contact: ContactOut | None = None
+    conversation: ConversationOut | None = None
+    recent_messages: list[MessageOut] = Field(default_factory=list)
+
+
 # ── Common ──
 class ErrorResponse(BaseModel):
     code: str

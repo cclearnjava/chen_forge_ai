@@ -4,6 +4,7 @@ from app.db import get_db
 from app.auth.middleware import get_admin_email, get_current_email
 from app.schemas import LeadCreate, LeadUpdate, LeadOut, AttachmentOut, PaginatedResponse
 from app.models import Lead, LeadAttachment, LeadStatus
+from app.services.customer_lifecycle import create_lifecycle_from_lead
 from app.config import settings
 import os
 import uuid
@@ -42,8 +43,12 @@ def create_lead(req: LeadCreate, db: Session = Depends(get_db), email: str = Dep
         video_links=req.video_links,
     )
     db.add(lead)
+    db.flush()
+
+    lifecycle = create_lifecycle_from_lead(db, lead.id)
     db.commit()
-    return {"lead": _lead_to_dict(lead)}
+
+    return {"lead": _lead_to_dict(lead), "lifecycle": lifecycle}
 
 
 @router.get("/admin/leads")

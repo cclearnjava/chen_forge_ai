@@ -144,6 +144,10 @@ class Customer(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
+    contacts: Mapped[list["Contact"]] = relationship(back_populates="customer", order_by="Contact.is_primary.desc()")
+    conversations: Mapped[list["Conversation"]] = relationship(back_populates="customer")
+    opportunities: Mapped[list["Opportunity"]] = relationship(back_populates="customer")
+
 
 class Contact(Base):
     __tablename__ = "contacts"
@@ -158,6 +162,8 @@ class Contact(Base):
     source_lead_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("leads.id"), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+
+    customer: Mapped["Customer"] = relationship(back_populates="contacts")
 
 
 class Conversation(Base):
@@ -175,6 +181,9 @@ class Conversation(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
+    customer: Mapped["Customer"] = relationship(back_populates="conversations")
+    messages: Mapped[list["Message"]] = relationship(back_populates="conversation", order_by="Message.created_at")
+
 
 class Message(Base):
     __tablename__ = "messages"
@@ -189,6 +198,9 @@ class Message(Base):
     source: Mapped[str] = mapped_column(String(100), nullable=False)
     external_message_id: Mapped[str | None] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+    conversation: Mapped["Conversation"] = relationship(back_populates="messages")
+    customer: Mapped["Customer"] = relationship()
 
 
 class Opportunity(Base):
@@ -211,6 +223,10 @@ class Opportunity(Base):
     next_step: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+
+    customer: Mapped["Customer"] = relationship(back_populates="opportunities")
+    primary_contact: Mapped["Contact | None"] = relationship()
+    conversation: Mapped["Conversation | None"] = relationship()
 
 
 class VerificationCode(Base):
