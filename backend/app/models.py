@@ -57,8 +57,8 @@ class ArtifactType(str, enum.Enum):
     audit = "audit"
     requirement_summary = "requirement_summary"
     customer_reply_draft = "customer_reply_draft"
-    proposal_draft = "proposal_draft"
     discovery_questions = "discovery_questions"
+    proposal_draft = "proposal_draft"
     delivery_roadmap = "delivery_roadmap"
     sent_message = "sent_message"
 
@@ -282,6 +282,8 @@ class AgentRun(Base):
         back_populates="agent_run",
         order_by="ToolInvocation.created_at",
     )
+    artifacts: Mapped[list["Artifact"]] = relationship(back_populates="agent_run")
+    decisions: Mapped[list["Decision"]] = relationship(back_populates="agent_run")
 
 
 class ToolInvocation(Base):
@@ -344,7 +346,9 @@ class Artifact(Base):
     __tablename__ = "artifacts"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
-    lead_id: Mapped[str] = mapped_column(String(36), ForeignKey("leads.id"), nullable=False, index=True)
+    lead_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("leads.id"), index=True)
+    agent_run_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("agent_runs.id"), index=True)
+    opportunity_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("opportunities.id"), index=True)
     type: Mapped[ArtifactType] = mapped_column(SAEnum(ArtifactType), nullable=False)
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     content_markdown: Mapped[str | None] = mapped_column(Text)
@@ -356,12 +360,16 @@ class Artifact(Base):
     version_history: Mapped[dict | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
+    agent_run: Mapped["AgentRun | None"] = relationship(back_populates="artifacts")
+
 
 class Decision(Base):
     __tablename__ = "decisions"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
-    lead_id: Mapped[str] = mapped_column(String(36), ForeignKey("leads.id"), nullable=False, index=True)
+    lead_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("leads.id"), index=True)
+    agent_run_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("agent_runs.id"), index=True)
+    opportunity_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("opportunities.id"), index=True)
     artifact_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("artifacts.id"))
     question: Mapped[str] = mapped_column(Text, nullable=False)
     recommendation: Mapped[str | None] = mapped_column(Text)
@@ -371,6 +379,8 @@ class Decision(Base):
     operator_note: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    agent_run: Mapped["AgentRun | None"] = relationship(back_populates="decisions")
 
 
 class DeliveryJob(Base):

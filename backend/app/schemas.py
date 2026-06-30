@@ -82,7 +82,9 @@ class AttachmentOut(BaseModel):
 # ── Artifact ──
 class ArtifactOut(BaseModel):
     id: str
-    lead_id: str
+    lead_id: str | None = None
+    agent_run_id: str | None = None
+    opportunity_id: str | None = None
     type: str
     title: str
     content_markdown: str | None = None
@@ -109,7 +111,9 @@ class ArtifactApprove(BaseModel):
 # ── Decision ──
 class DecisionOut(BaseModel):
     id: str
-    lead_id: str
+    lead_id: str | None = None
+    agent_run_id: str | None = None
+    opportunity_id: str | None = None
     artifact_id: str | None = None
     question: str
     recommendation: str | None = None
