@@ -89,6 +89,7 @@ These directories are **runtime-only** and gitignored. They are created automati
 - **Issue-first**: create `docs/issues/guard-*.md` before fixing any guardian finding
 - **Verification honesty**: partial test pass ≠ full pass; closure needs evidence
 - **No half-finished work**: no TODO/FIXME left behind without tracking
+- **Daily code commit**: every day with new code development must end with a verified code commit for that day's work; design docs may remain uncommitted unless explicitly requested
 
 ## Guardian Issue Workflow
 
