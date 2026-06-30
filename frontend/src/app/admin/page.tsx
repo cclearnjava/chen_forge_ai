@@ -1,74 +1,91 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import AdminShell from "@/components/admin/admin-shell";
-import { opportunities } from "@/lib/admin-mock";
+import { getOpportunities, type OpportunityListItem } from "@/lib/admin-api";
 
 export default function AdminPage() {
-  const needsFollowUp = opportunities.filter((item) => !item.nextStep || item.stage === "qualified");
+  const [items, setItems] = useState<OpportunityListItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getOpportunities()
+      .then((res) => { setItems(res.items); setTotal(res.total); })
+      .catch((err) => setError(err.message));
+  }, []);
+
+  const needsFollowUp = items.filter((o) => !o.next_step || o.stage === "qualified");
+  const qualifiedCount = items.filter((o) => o.stage === "qualified").length;
+  const recentItems = [...items].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()).slice(0, 5);
 
   return (
     <AdminShell
       active="cockpit"
       eyebrow="Company Cockpit"
       title="今日经营台"
-      subtitle="静态 UI mock：聚焦客户机会、待跟进动作和最近对话。"
+      subtitle={error ? `API error: ${error}` : `${total} opportunities from API`}
     >
       <section className="admin-metrics" aria-label="Cockpit metrics">
-        <article>
-          <span>Customers</span>
-          <strong>4</strong>
-          <small>mock records</small>
-        </article>
-        <article>
-          <span>Opportunities</span>
-          <strong>{opportunities.length}</strong>
-          <small>pipeline items</small>
-        </article>
+        <article><span>Customers</span><strong>{total}</strong><small>with opportunities</small></article>
+        <article><span>Opportunities</span><strong>{total}</strong><small>total pipeline</small></article>
         <article className="attention">
-          <span>Follow-up</span>
-          <strong>{needsFollowUp.length}</strong>
-          <small>owner actions</small>
+          <span>Follow-up</span><strong>{needsFollowUp.length}</strong><small>owner actions</small>
         </article>
-        <article>
-          <span>Messages</span>
-          <strong>{opportunities.reduce((sum, item) => sum + item.messages.length, 0)}</strong>
-          <small>conversation notes</small>
-        </article>
+        <article><span>Qualified</span><strong>{qualifiedCount}</strong><small>ready for agent</small></article>
       </section>
 
       <section className="cockpit-grid">
         <article className="focus-panel">
           <div className="panel-heading">
             <div>
-              <p className="eyebrow">Focus</p>
-              <h2>今天先推进这些机会</h2>
+              <p className="eyebrow">Priority Queue</p>
+              <h2>待跟进机会</h2>
             </div>
             <Link className="button ghost" href="/admin/opportunities">查看全部</Link>
           </div>
-          {needsFollowUp.map((item) => (
-            <Link className="focus-item" href={`/admin/opportunities/${item.id}`} key={item.id}>
-              <strong>{item.companyName}</strong>
-              <span>{item.title}</span>
-              <small>{item.nextStep || "未设置下一步动作"}</small>
-            </Link>
-          ))}
+          {needsFollowUp.length === 0 ? (
+            <div className="empty-state small"><p>暂无待跟进机会</p></div>
+          ) : (
+            needsFollowUp.slice(0, 5).map((o) => (
+              <Link className="focus-item" href={`/admin/opportunities/${o.id}`} key={o.id}>
+                <strong>{o.company_name}</strong>
+                <span>{o.title}</span>
+                <small>{o.next_step || "未设置下一步动作"}</small>
+              </Link>
+            ))
+          )}
         </article>
 
         <article className="focus-panel">
           <div className="panel-heading">
             <div>
               <p className="eyebrow">Recent</p>
-              <h2>最近客户消息</h2>
+              <h2>最近更新的机会</h2>
             </div>
           </div>
-          {opportunities.slice(0, 3).map((item) => (
-            <Link className="focus-item" href={`/admin/opportunities/${item.id}`} key={item.id}>
-              <strong>{item.companyName}</strong>
-              <span>{item.messages[0]?.body}</span>
-              <small>{item.messages[0]?.createdAt}</small>
-            </Link>
-          ))}
+          {recentItems.length === 0 ? (
+            <div className="empty-state small"><p>暂无数据</p></div>
+          ) : (
+            recentItems.map((o) => (
+              <Link className="focus-item" href={`/admin/opportunities/${o.id}`} key={o.id}>
+                <strong>{o.company_name}</strong>
+                <span>{o.title} · <StageLabel stage={o.stage} /></span>
+                <small>updated: {new Date(o.updated_at).toLocaleDateString()}</small>
+              </Link>
+            ))
+          )}
         </article>
       </section>
     </AdminShell>
   );
+}
+
+function StageLabel({ stage }: { stage: string }) {
+  const labels: Record<string, string> = {
+    lead: "Lead", qualified: "Qualified", proposal: "Proposal",
+    negotiation: "Negotiation", won: "Won", lost: "Lost", archived: "Archived",
+  };
+  return <span className={`stage-badge stage-${stage}`}>{labels[stage] || stage}</span>;
 }
