@@ -334,6 +334,9 @@ def trigger_sales_reply(
     try:
         result = run_sales_reply_workflow(db, req.opportunity_id)
         db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
     except Exception:
         db.rollback()
         raise HTTPException(status_code=500, detail="Workflow execution failed")

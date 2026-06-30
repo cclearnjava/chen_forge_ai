@@ -1,5 +1,6 @@
 """Sales Reply Workflow: Opportunity → AgentRun → Artifact → Decision → AuditLog."""
 
+from datetime import datetime
 from sqlalchemy.orm import Session
 from app.models import (
     AgentProfile, AgentRun, AgentRunStatus, Artifact, ArtifactType,
@@ -73,6 +74,7 @@ def run_sales_reply_workflow(db: Session, opportunity_id: str) -> dict:
         opportunity_id=opportunity_id,
         conversation_id=opp.conversation_id,
         status=AgentRunStatus.running,
+        started_at=datetime.utcnow(),
         input_json={"opportunity_id": opportunity_id},
     )
     db.add(sales_run)
@@ -115,6 +117,12 @@ def run_sales_reply_workflow(db: Session, opportunity_id: str) -> dict:
 
     # Mark sales run succeeded
     sales_run.status = AgentRunStatus.succeeded
+    sales_run.completed_at = datetime.utcnow()
+    sales_run.output_json = {
+        "draft_artifact_id": draft_artifact.id,
+        "questions_artifact_id": questions_artifact.id,
+        "discovery_questions_count": len(questions),
+    }
 
     # 7. Upsert quality_agent profile
     quality_profile = _upsert_agent_profile(
@@ -131,6 +139,7 @@ def run_sales_reply_workflow(db: Session, opportunity_id: str) -> dict:
         opportunity_id=opportunity_id,
         conversation_id=opp.conversation_id,
         status=AgentRunStatus.running,
+        started_at=datetime.utcnow(),
         input_json={"artifact_id": draft_artifact.id},
     )
     db.add(quality_run)
@@ -156,6 +165,12 @@ def run_sales_reply_workflow(db: Session, opportunity_id: str) -> dict:
 
     # Mark quality run succeeded
     quality_run.status = AgentRunStatus.succeeded
+    quality_run.completed_at = datetime.utcnow()
+    quality_run.output_json = {
+        "review_artifact_id": review_artifact.id,
+        "risk_level": review["risk_level"],
+        "flag_count": len(review["risk_flags"]),
+    }
 
     # 11. Create waiting Decision
     decision = Decision(
