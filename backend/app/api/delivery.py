@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db import get_db
 from app.auth.middleware import get_admin_email
-from app.models import DeliveryJob, Artifact, DeliveryStatus, DeliveryChannel
-from app.schemas import DeliveryJobCreate
+from app.models import AuditLog, DeliveryJob, Artifact, DeliveryStatus, DeliveryChannel
+from app.schemas import DeliveryJobCreate, DeliveryJobMarkSentIn
 from app.config import settings
 
 router = APIRouter(prefix="/delivery-jobs", tags=["delivery"])
@@ -88,4 +88,38 @@ def get_delivery_job(
     job = db.query(DeliveryJob).filter(DeliveryJob.id == delivery_job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="DeliveryJob not found")
+    return {"delivery_job": _job_to_dict(job)}
+
+
+@router.post("/{delivery_job_id}/mark-sent")
+def mark_delivery_job_sent(
+    delivery_job_id: str,
+    req: DeliveryJobMarkSentIn = DeliveryJobMarkSentIn(),
+    db: Session = Depends(get_db),
+    admin: str = Depends(get_admin_email),
+):
+    job = db.query(DeliveryJob).filter(DeliveryJob.id == delivery_job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="DeliveryJob not found")
+    if job.status != DeliveryStatus.draft:
+        raise HTTPException(status_code=409, detail=f"DeliveryJob is already {job.status.value}")
+
+    from datetime import datetime as dt
+    job.status = DeliveryStatus.sent
+    job.sent_at = dt.utcnow()
+
+    db.add(AuditLog(
+        lead_id=job.lead_id,
+        actor=admin,
+        action="delivery_job_marked_sent",
+        details_json={
+            "delivery_job_id": job.id,
+            "artifact_id": job.artifact_id,
+            "channel": job.channel.value if hasattr(job.channel, "value") else str(job.channel),
+            "recipient": job.recipient,
+            "operator_note": req.operator_note,
+        },
+    ))
+
+    db.commit()
     return {"delivery_job": _job_to_dict(job)}

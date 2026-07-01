@@ -213,7 +213,16 @@ class DeliveryJobOut(BaseModel):
     status: str
     provider_message_id: str | None = None
     error_message: str | None = None
+    sent_at: datetime | None = None
     created_at: datetime
+
+
+class DeliveryJobMarkSentIn(BaseModel):
+    operator_note: str = ""
+
+
+class DeliveryJobMarkSentOut(BaseModel):
+    delivery_job: DeliveryJobOut
     sent_at: datetime | None = None
 
     model_config = {"from_attributes": True}
