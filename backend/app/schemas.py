@@ -346,3 +346,17 @@ class ErrorResponse(BaseModel):
 class PaginatedResponse(BaseModel):
     items: list
     total: int
+
+
+# ── Admin Cockpit ──
+class AdminOpportunityCockpitOut(BaseModel):
+    opportunity: dict
+    customer: dict | None = None
+    contact: dict | None = None
+    conversation: dict | None = None
+    messages: list = Field(default_factory=list)
+    artifacts: list = Field(default_factory=list)
+    decisions: list = Field(default_factory=list)
+    delivery_jobs: list = Field(default_factory=list)
+    audit_logs: list = Field(default_factory=list)
+    agent_runs: list = Field(default_factory=list)

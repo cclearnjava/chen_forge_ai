@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session, joinedload
 from app.db import get_db
 from app.auth.middleware import get_admin_email
 from app.models import (
-    AgentRun, Artifact, AuditLog, Conversation, Customer, Decision,
-    Message, Opportunity, OpportunityStage,
+    AgentRun, Artifact, AuditLog, Contact, Conversation, Customer, Decision,
+    DeliveryJob, Message, Opportunity, OpportunityStage,
 )
 from app.schemas import OpportunityUpdate
 from app.services.sales_reply_workflow import run_sales_reply_workflow
@@ -374,4 +374,173 @@ def trigger_sales_reply(
             "recommendation": result["decision"].recommendation,
             "status": result["decision"].status.value if hasattr(result["decision"].status, "value") else result["decision"].status,
         },
+    }
+
+
+# ── BE-02: Admin Cockpit Aggregation ──
+
+def _to_iso(dt) -> str | None:
+    return dt.isoformat() if dt else None
+
+
+def _enum_value(v) -> str:
+    return v.value if hasattr(v, "value") else str(v)
+
+
+@router.get("/admin/opportunities/{opportunity_id}/cockpit")
+def get_opportunity_cockpit(
+    opportunity_id: str,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(get_admin_email),
+):
+    opp = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
+    if not opp:
+        raise HTTPException(status_code=404, detail="Opportunity not found")
+
+    # Customer and Contact (fail-soft)
+    customer_dict = None
+    if opp.customer_id:
+        cust = db.query(Customer).filter(Customer.id == opp.customer_id).first()
+        if cust:
+            customer_dict = {
+                "id": cust.id, "name": cust.name, "owner_email": cust.owner_email,
+                "industry": cust.industry, "company_size": cust.company_size,
+                "source_lead_id": cust.source_lead_id,
+                "created_at": _to_iso(cust.created_at), "updated_at": _to_iso(cust.updated_at),
+            }
+
+    contact_dict = None
+    if opp.primary_contact_id:
+        ct = db.query(Contact).filter(Contact.id == opp.primary_contact_id).first()
+        if ct:
+            contact_dict = {
+                "id": ct.id, "customer_id": ct.customer_id, "name": ct.name,
+                "email": ct.email, "contact_method": ct.contact_method,
+                "role": ct.role, "is_primary": ct.is_primary,
+                "created_at": _to_iso(ct.created_at), "updated_at": _to_iso(ct.updated_at),
+            }
+
+    # Conversation + Messages (fail-soft)
+    conversation_dict = None
+    messages = []
+    if opp.conversation_id:
+        conv = db.query(Conversation).filter(Conversation.id == opp.conversation_id).first()
+        if conv:
+            conversation_dict = {
+                "id": conv.id, "customer_id": conv.customer_id,
+                "lead_id": conv.lead_id, "title": conv.title,
+                "channel": conv.channel, "status": _enum_value(conv.status),
+                "created_at": _to_iso(conv.created_at), "updated_at": _to_iso(conv.updated_at),
+            }
+            messages = [
+                {
+                    "id": m.id, "conversation_id": m.conversation_id,
+                    "sender_type": _enum_value(m.sender_type),
+                    "sender_label": m.sender_label, "body_markdown": m.body_markdown,
+                    "source": m.source, "created_at": _to_iso(m.created_at),
+                }
+                for m in db.query(Message)
+                .filter(Message.conversation_id == opp.conversation_id)
+                .order_by(Message.created_at.asc())
+                .all()
+            ]
+
+    # Artifacts by opportunity_id (desc)
+    artifacts = [
+        {
+            "id": a.id, "agent_run_id": a.agent_run_id,
+            "type": _enum_value(a.type), "title": a.title,
+            "content_markdown": a.content_markdown, "content_json": a.content_json,
+            "model": a.model, "prompt_version": a.prompt_version,
+            "requires_approval": a.requires_approval,
+            "created_at": _to_iso(a.created_at),
+        }
+        for a in db.query(Artifact)
+        .filter(Artifact.opportunity_id == opportunity_id)
+        .order_by(Artifact.created_at.desc())
+        .all()
+    ]
+
+    # Decisions by opportunity_id (desc)
+    decisions = [
+        {
+            "id": d.id, "agent_run_id": d.agent_run_id,
+            "opportunity_id": d.opportunity_id,
+            "artifact_id": d.artifact_id, "question": d.question,
+            "recommendation": d.recommendation, "status": _enum_value(d.status),
+            "operator_note": d.operator_note,
+            "created_at": _to_iso(d.created_at), "resolved_at": _to_iso(d.resolved_at),
+        }
+        for d in db.query(Decision)
+        .filter(Decision.opportunity_id == opportunity_id)
+        .order_by(Decision.created_at.desc())
+        .all()
+    ]
+
+    # DeliveryJobs — traced through artifacts of this opportunity
+    artifact_ids = [a["id"] for a in artifacts]
+    delivery_jobs = []
+    if artifact_ids:
+        delivery_jobs = [
+            {
+                "id": j.id, "lead_id": j.lead_id, "artifact_id": j.artifact_id,
+                "channel": _enum_value(j.channel), "recipient": j.recipient,
+                "subject": j.subject, "body_markdown": j.body_markdown,
+                "status": _enum_value(j.status),
+                "created_at": _to_iso(j.created_at), "sent_at": _to_iso(j.sent_at),
+            }
+            for j in db.query(DeliveryJob)
+            .filter(DeliveryJob.artifact_id.in_(artifact_ids))
+            .order_by(DeliveryJob.created_at.desc())
+            .all()
+        ]
+
+    # AuditLogs — by lead_id (current approach, same as detail)
+    audit_logs = [
+        {
+            "id": log.id, "actor": log.actor, "action": log.action,
+            "details_json": log.details_json, "created_at": _to_iso(log.created_at),
+        }
+        for log in db.query(AuditLog)
+        .filter(AuditLog.lead_id == opp.lead_id)
+        .order_by(AuditLog.created_at.desc())
+        .limit(30)
+        .all()
+    ]
+
+    # AgentRuns by opportunity_id (desc)
+    agent_runs = [
+        {
+            "id": r.id, "agent_profile_id": r.agent_profile_id,
+            "status": _enum_value(r.status), "input_json": r.input_json,
+            "output_json": r.output_json, "error_message": r.error_message,
+            "started_at": _to_iso(r.started_at), "completed_at": _to_iso(r.completed_at),
+            "created_at": _to_iso(r.created_at),
+        }
+        for r in db.query(AgentRun)
+        .filter(AgentRun.opportunity_id == opportunity_id)
+        .order_by(AgentRun.created_at.desc())
+        .all()
+    ]
+
+    return {
+        "opportunity": {
+            "id": opp.id, "customer_id": opp.customer_id,
+            "lead_id": opp.lead_id, "primary_contact_id": opp.primary_contact_id,
+            "conversation_id": opp.conversation_id, "title": opp.title,
+            "stage": _enum_value(opp.stage), "desired_outcome": opp.desired_outcome,
+            "problem_summary": opp.problem_summary, "budget_range": opp.budget_range,
+            "estimated_value": opp.estimated_value, "probability": opp.probability,
+            "next_step": opp.next_step,
+            "created_at": _to_iso(opp.created_at), "updated_at": _to_iso(opp.updated_at),
+        },
+        "customer": customer_dict,
+        "contact": contact_dict,
+        "conversation": conversation_dict,
+        "messages": messages,
+        "artifacts": artifacts,
+        "decisions": decisions,
+        "delivery_jobs": delivery_jobs,
+        "audit_logs": audit_logs,
+        "agent_runs": agent_runs,
     }
