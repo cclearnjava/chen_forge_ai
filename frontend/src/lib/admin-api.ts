@@ -273,6 +273,16 @@ export async function getOpportunityCockpit(id: string): Promise<AdminOpportunit
   return api(`/admin/opportunities/${id}/cockpit`);
 }
 
+export async function markDeliveryJobSent(
+  deliveryJobId: string,
+  operatorNote?: string,
+): Promise<{ delivery_job: CockpitDeliveryJob }> {
+  return api(`/delivery-jobs/${deliveryJobId}/mark-sent`, {
+    method: "POST",
+    body: JSON.stringify({ operator_note: operatorNote || "" }),
+  });
+}
+
 export const stageLabels: Record<Stage, string> = {
   lead: "Lead",
   qualified: "Qualified",

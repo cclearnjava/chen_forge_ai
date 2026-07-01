@@ -8,12 +8,12 @@ import AgentWorkbench from "@/components/admin/agent-workbench";
 import ApprovalGate from "@/components/admin/approval-gate";
 import AuditTrail from "@/components/admin/audit-trail";
 import ConversationThread from "@/components/admin/conversation-thread";
+import DeliveryPanel from "@/components/admin/delivery-panel";
 import StageBadge from "@/components/admin/stage-badge";
 import {
   getOpportunityCockpit,
   runSalesReplyAgent,
   type AdminOpportunityCockpit,
-  type CockpitMessage,
 } from "@/lib/admin-api";
 
 type PageState = "loading" | "empty" | "error" | "ready" | "running";
@@ -90,8 +90,8 @@ export default function OpportunityDetailPage() {
   const isRunning = state === "running";
   const waitingDecision = cockpit.decisions?.find((d) => d.status === "waiting");
 
-  // Map cockpit messages to ConversationThread expected format
-  const messages: CockpitMessage[] = cockpit.messages || [];
+  // Cockpit messages — already in ConversationThread-compatible format
+  const messages = cockpit.messages || [];
 
   return (
     <AdminShell
@@ -159,18 +159,7 @@ export default function OpportunityDetailPage() {
 
           <ApprovalGate decisions={cockpit.decisions} onDecisionChanged={() => { setRetryKey((k) => k + 1); }} />
 
-          {/* Delivery Jobs */}
-          {cockpit.delivery_jobs.length > 0 && (
-            <section className="delivery-panel" aria-label="Delivery jobs">
-              <div className="inspector-title"><span>Delivery</span></div>
-              {cockpit.delivery_jobs.map((j) => (
-                <div className="delivery-item" key={j.id}>
-                  <strong>{j.subject}</strong>
-                  <small>{j.channel} · {j.status} · {new Date(j.created_at).toLocaleString()}</small>
-                </div>
-              ))}
-            </section>
-          )}
+          <DeliveryPanel jobs={cockpit.delivery_jobs} onDeliveryChanged={() => { setRetryKey((k) => k + 1); }} />
         </aside>
       </div>
 
