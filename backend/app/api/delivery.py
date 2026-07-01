@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.auth.middleware import get_admin_email
 from app.models import AuditLog, DeliveryJob, Artifact, DeliveryStatus, DeliveryChannel
-from app.schemas import DeliveryJobCreate, DeliveryJobMarkSentIn
+from app.schemas import DeliveryJobCreate, DeliveryJobMarkSentIn, DeliveryJobMarkSentOut
 from app.config import settings
 
 router = APIRouter(prefix="/delivery-jobs", tags=["delivery"])
@@ -91,7 +91,7 @@ def get_delivery_job(
     return {"delivery_job": _job_to_dict(job)}
 
 
-@router.post("/{delivery_job_id}/mark-sent")
+@router.post("/{delivery_job_id}/mark-sent", response_model=DeliveryJobMarkSentOut)
 def mark_delivery_job_sent(
     delivery_job_id: str,
     req: DeliveryJobMarkSentIn = DeliveryJobMarkSentIn(),

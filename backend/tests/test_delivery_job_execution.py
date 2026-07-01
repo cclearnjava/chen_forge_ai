@@ -4,7 +4,7 @@ from starlette.testclient import TestClient
 from app.main import app
 from app.db import SessionLocal, init_db
 from app.auth.verification import create_verification_code
-from app.models import AuditLog, DeliveryJob
+from app.models import AuditLog, DeliveryJob, DeliveryStatus
 
 ADMIN = {"Authorization": "Bearer admin-dev-token"}
 
@@ -126,3 +126,19 @@ class TestDeliveryJobExecution:
         assert sent_job is not None
         assert sent_job["status"] == "sent"
         assert sent_job["sent_at"] is not None
+
+    def test_mark_sent_requires_draft_status(self, client: TestClient):
+        """BE-03: non-draft statuses (failed, cancelled, etc.) return 409."""
+        init_db()
+        job_id = _setup_draft_delivery_job(client)
+
+        # Manually set job to failed, simulating a non-draft state
+        db = SessionLocal()
+        job = db.query(DeliveryJob).filter(DeliveryJob.id == job_id).first()
+        job.status = DeliveryStatus.failed
+        db.commit()
+        db.close()
+
+        r = client.post(f"/api/v1/delivery-jobs/{job_id}/mark-sent",
+                        json={"operator_note": "尝试对 failed 状态标记"}, headers=ADMIN)
+        assert r.status_code == 409
