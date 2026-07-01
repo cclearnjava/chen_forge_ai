@@ -349,14 +349,120 @@ class PaginatedResponse(BaseModel):
 
 
 # ── Admin Cockpit ──
+class CockpitOpportunityOut(BaseModel):
+    id: str
+    customer_id: str
+    lead_id: str | None = None
+    primary_contact_id: str | None = None
+    conversation_id: str | None = None
+    title: str
+    stage: str
+    desired_outcome: str | None = None
+    problem_summary: str | None = None
+    budget_range: str | None = None
+    estimated_value: int | None = None
+    probability: int | None = None
+    next_step: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class CockpitCustomerOut(BaseModel):
+    id: str
+    name: str
+    owner_email: str
+    industry: str | None = None
+    company_size: str | None = None
+
+
+class CockpitContactOut(BaseModel):
+    id: str
+    name: str | None = None
+    email: str | None = None
+    contact_method: str | None = None
+    is_primary: bool
+
+
+class CockpitConversationOut(BaseModel):
+    id: str
+    title: str
+    channel: str
+    status: str
+
+
+class CockpitMessageOut(BaseModel):
+    id: str
+    sender_type: str
+    sender_label: str | None = None
+    body_markdown: str
+    source: str
+    created_at: datetime
+
+
+class CockpitArtifactOut(BaseModel):
+    id: str
+    agent_run_id: str | None = None
+    type: str
+    title: str
+    content_markdown: str | None = None
+    content_json: dict | None = None
+    model: str
+    requires_approval: bool
+    created_at: datetime
+
+
+class CockpitDecisionOut(BaseModel):
+    id: str
+    agent_run_id: str | None = None
+    artifact_id: str | None = None
+    question: str
+    recommendation: str | None = None
+    status: str
+    operator_note: str | None = None
+    created_at: datetime
+    resolved_at: datetime | None = None
+
+
+class CockpitDeliveryJobOut(BaseModel):
+    id: str
+    artifact_id: str
+    channel: str
+    recipient: str
+    subject: str
+    body_markdown: str
+    status: str
+    created_at: datetime
+    sent_at: datetime | None = None
+
+
+class CockpitAuditLogOut(BaseModel):
+    id: str
+    actor: str
+    action: str
+    details_json: dict | None = None
+    created_at: datetime
+
+
+class CockpitAgentRunOut(BaseModel):
+    id: str
+    agent_profile_id: str
+    status: str
+    input_json: dict | None = None
+    output_json: dict | None = None
+    error_message: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    created_at: datetime
+
+
 class AdminOpportunityCockpitOut(BaseModel):
-    opportunity: dict
-    customer: dict | None = None
-    contact: dict | None = None
-    conversation: dict | None = None
-    messages: list = Field(default_factory=list)
-    artifacts: list = Field(default_factory=list)
-    decisions: list = Field(default_factory=list)
-    delivery_jobs: list = Field(default_factory=list)
-    audit_logs: list = Field(default_factory=list)
-    agent_runs: list = Field(default_factory=list)
+    opportunity: CockpitOpportunityOut
+    customer: CockpitCustomerOut | None = None
+    contact: CockpitContactOut | None = None
+    conversation: CockpitConversationOut | None = None
+    messages: list[CockpitMessageOut] = Field(default_factory=list)
+    artifacts: list[CockpitArtifactOut] = Field(default_factory=list)
+    decisions: list[CockpitDecisionOut] = Field(default_factory=list)
+    delivery_jobs: list[CockpitDeliveryJobOut] = Field(default_factory=list)
+    audit_logs: list[CockpitAuditLogOut] = Field(default_factory=list)
+    agent_runs: list[CockpitAgentRunOut] = Field(default_factory=list)

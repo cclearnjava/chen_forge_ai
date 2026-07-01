@@ -7,7 +7,7 @@ from app.models import (
     AgentRun, Artifact, AuditLog, Contact, Conversation, Customer, Decision,
     DeliveryJob, Message, Opportunity, OpportunityStage,
 )
-from app.schemas import OpportunityUpdate
+from app.schemas import AdminOpportunityCockpitOut, OpportunityUpdate
 from app.services.sales_reply_workflow import run_sales_reply_workflow
 
 
@@ -387,7 +387,7 @@ def _enum_value(v) -> str:
     return v.value if hasattr(v, "value") else str(v)
 
 
-@router.get("/admin/opportunities/{opportunity_id}/cockpit")
+@router.get("/admin/opportunities/{opportunity_id}/cockpit", response_model=AdminOpportunityCockpitOut)
 def get_opportunity_cockpit(
     opportunity_id: str,
     db: Session = Depends(get_db),
