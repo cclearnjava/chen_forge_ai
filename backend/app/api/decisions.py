@@ -64,6 +64,10 @@ def approve_decision(
     opp = db.query(Opportunity).filter(Opportunity.id == d.opportunity_id).first()
     if not opp:
         raise HTTPException(status_code=422, detail="Decision has no linked opportunity")
+    if not d.lead_id:
+        raise HTTPException(status_code=422, detail="Decision has no linked lead")
+    if not opp.conversation_id:
+        raise HTTPException(status_code=422, detail="Opportunity has no linked conversation")
 
     # Resolve the decision
     d.status = DecisionStatus.approved

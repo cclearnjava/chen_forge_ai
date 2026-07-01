@@ -180,3 +180,36 @@ class TestDecisionApprovalExecution:
 
         r = client.post(f"/api/v1/decisions/{dec_id}/approve", json={}, headers=ADMIN)
         assert r.status_code == 409
+
+    def test_approve_missing_conversation_returns_422(self, client: TestClient):
+        """BE-06: approve with missing conversation returns 422."""
+        init_db()
+        opp_id = _setup_lead_and_opportunity(client)
+        _run_sales_agent(client, opp_id)
+
+        # Nullify conversation_id on the opportunity
+        db = SessionLocal()
+        opp = db.query(Opportunity).filter(Opportunity.id == opp_id).first()
+        opp.conversation_id = None
+        db.commit()
+
+        dec_id = _get_waiting_decision_id(client, opp_id)
+        r = client.post(f"/api/v1/decisions/{dec_id}/approve", json={}, headers=ADMIN)
+        assert r.status_code == 422
+
+    def test_approve_missing_lead_returns_422(self, client: TestClient):
+        """BE-06: approve with missing lead returns 422."""
+        init_db()
+        opp_id = _setup_lead_and_opportunity(client)
+        _run_sales_agent(client, opp_id)
+
+        # Nullify lead_id on the decision
+        db = SessionLocal()
+        decs = db.query(Decision).filter(Decision.opportunity_id == opp_id).all()
+        for d in decs:
+            d.lead_id = None
+        db.commit()
+
+        dec_id = _get_waiting_decision_id(client, opp_id)
+        r = client.post(f"/api/v1/decisions/{dec_id}/approve", json={}, headers=ADMIN)
+        assert r.status_code == 422

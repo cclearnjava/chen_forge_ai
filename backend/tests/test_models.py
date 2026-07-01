@@ -284,7 +284,7 @@ def test_create_customer_lifecycle_models():
 def test_create_agent_profile():
     db = SessionLocal()
     profile = AgentProfile(
-        name="sales_agent",
+        name="model_sales_agent_test",
         display_name="Sales Agent",
         role="生成客户回复草稿和澄清问题",
         allowed_tools_json={"tools": ["context_builder"]},
@@ -293,7 +293,7 @@ def test_create_agent_profile():
     db.add(profile)
     db.commit()
 
-    saved = db.query(AgentProfile).filter(AgentProfile.name == "sales_agent").one()
+    saved = db.query(AgentProfile).filter(AgentProfile.name == "model_sales_agent_test").one()
     assert saved.id is not None
     assert saved.requires_approval is True
     assert saved.is_active is True
