@@ -195,6 +195,84 @@ export async function getCustomers(params?: { q?: string }): Promise<{ items: Cu
   return api(`/admin/customers${qs ? `?${qs}` : ""}`);
 }
 
+/* ── Cockpit types ── */
+
+export interface AdminOpportunityCockpit {
+  opportunity: CockpitOpportunity;
+  customer: CockpitCustomer | null;
+  contact: CockpitContact | null;
+  conversation: CockpitConversation | null;
+  messages: CockpitMessage[];
+  artifacts: CockpitArtifact[];
+  decisions: CockpitDecision[];
+  delivery_jobs: CockpitDeliveryJob[];
+  audit_logs: CockpitAuditLog[];
+  agent_runs: CockpitAgentRun[];
+}
+
+export interface CockpitOpportunity {
+  id: string; customer_id: string; lead_id: string | null;
+  primary_contact_id: string | null; conversation_id: string | null;
+  title: string; stage: Stage; desired_outcome: string | null;
+  problem_summary: string | null; budget_range: string | null;
+  estimated_value: number | null; probability: number | null;
+  next_step: string | null; created_at: string; updated_at: string;
+}
+
+export interface CockpitCustomer {
+  id: string; name: string; owner_email: string;
+  industry: string | null; company_size: string | null;
+}
+
+export interface CockpitContact {
+  id: string; name: string | null; email: string | null;
+  contact_method: string | null; is_primary: boolean;
+}
+
+export interface CockpitConversation {
+  id: string; title: string; channel: string; status: string;
+}
+
+export interface CockpitMessage {
+  id: string; sender_type: MessageSenderType; sender_label: string | null;
+  body_markdown: string; source: string; created_at: string;
+}
+
+export interface CockpitArtifact {
+  id: string; agent_run_id: string | null; type: string; title: string;
+  content_markdown: string | null; content_json: Record<string, unknown> | null;
+  model: string; requires_approval: boolean; created_at: string;
+}
+
+export interface CockpitDecision {
+  id: string; agent_run_id: string | null; artifact_id: string | null;
+  question: string; recommendation: string | null; status: string;
+  operator_note: string | null; created_at: string; resolved_at: string | null;
+}
+
+export interface CockpitDeliveryJob {
+  id: string; artifact_id: string; channel: string; recipient: string;
+  subject: string; body_markdown: string; status: string;
+  created_at: string; sent_at: string | null;
+}
+
+export interface CockpitAuditLog {
+  id: string; actor: string; action: string;
+  details_json: Record<string, unknown> | null; created_at: string;
+}
+
+export interface CockpitAgentRun {
+  id: string; agent_profile_id: string; status: string;
+  input_json: Record<string, unknown> | null;
+  output_json: Record<string, unknown> | null;
+  error_message: string | null;
+  started_at: string | null; completed_at: string | null; created_at: string;
+}
+
+export async function getOpportunityCockpit(id: string): Promise<AdminOpportunityCockpit> {
+  return api(`/admin/opportunities/${id}/cockpit`);
+}
+
 export const stageLabels: Record<Stage, string> = {
   lead: "Lead",
   qualified: "Qualified",

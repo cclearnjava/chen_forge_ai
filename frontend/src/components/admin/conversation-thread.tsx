@@ -1,6 +1,6 @@
-import type { ConversationMessage } from "@/lib/admin-api";
+import type { CockpitMessage } from "@/lib/admin-api";
 
-export default function ConversationThread({ messages }: { messages: ConversationMessage[] }) {
+export default function ConversationThread({ messages }: { messages: CockpitMessage[] }) {
   return (
     <section className="conversation-panel" aria-label="Conversation thread">
       <div className="panel-heading">
@@ -14,7 +14,7 @@ export default function ConversationThread({ messages }: { messages: Conversatio
         {messages.map((message) => (
           <article className={`message-bubble ${message.sender_type}`} key={message.id}>
             <header>
-              <strong>{message.sender_label}</strong>
+              <strong>{message.sender_label || ""}</strong>
               <span>{message.sender_type} · {message.source} · {new Date(message.created_at).toLocaleString()}</span>
             </header>
             <p>{message.body_markdown}</p>

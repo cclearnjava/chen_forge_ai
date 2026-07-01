@@ -10,9 +10,10 @@ import AuditTrail from "@/components/admin/audit-trail";
 import ConversationThread from "@/components/admin/conversation-thread";
 import StageBadge from "@/components/admin/stage-badge";
 import {
-  getOpportunityDetail,
+  getOpportunityCockpit,
   runSalesReplyAgent,
-  type OpportunityDetail,
+  type AdminOpportunityCockpit,
+  type CockpitMessage,
 } from "@/lib/admin-api";
 
 type PageState = "loading" | "empty" | "error" | "ready" | "running";
@@ -22,19 +23,19 @@ export default function OpportunityDetailPage() {
   const opportunityId = params?.opportunityId as string;
 
   const [state, setState] = useState<PageState>("loading");
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<OpportunityDetail | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [cockpit, setCockpit] = useState<AdminOpportunityCockpit | null>(null);
   const [retryKey, setRetryKey] = useState(0);
 
   const doFetch = useCallback(async (id: string) => {
     setState("loading");
-    setError(null);
+    setErrorMsg(null);
     try {
-      const res = await getOpportunityDetail(id);
-      setData(res.opportunity);
+      const data = await getOpportunityCockpit(id);
+      setCockpit(data);
       setState("ready");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setErrorMsg(err instanceof Error ? err.message : "Unknown error");
       setState("error");
     }
   }, []);
@@ -45,10 +46,10 @@ export default function OpportunityDetailPage() {
     queueMicrotask(() => {
       if (cancelled) return;
       setState("loading");
-      setError(null);
-      getOpportunityDetail(opportunityId)
-        .then((res) => { if (!cancelled) { setData(res.opportunity); setState("ready"); } })
-        .catch((err: unknown) => { if (!cancelled) { setError(err instanceof Error ? err.message : "Unknown error"); setState("error"); } });
+      setErrorMsg(null);
+      getOpportunityCockpit(opportunityId)
+        .then((data) => { if (!cancelled) { setCockpit(data); setState("ready"); } })
+        .catch((err: unknown) => { if (!cancelled) { setErrorMsg(err instanceof Error ? err.message : "Unknown error"); setState("error"); } });
     });
     return () => { cancelled = true; };
   }, [opportunityId, retryKey]);
@@ -60,132 +61,122 @@ export default function OpportunityDetailPage() {
       await runSalesReplyAgent(opportunityId);
       await doFetch(opportunityId);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Workflow failed");
+      setErrorMsg(err instanceof Error ? err.message : "Workflow failed");
       setState("error");
     }
   };
 
   if (state === "loading") {
     return (
-      <AdminShell active="opportunities" eyebrow="Loading..." title="Opportunity" subtitle="正在加载机会详情">
+      <AdminShell active="opportunities" eyebrow="Loading..." title="Opportunity" subtitle="正在加载">
         <div className="loading-state">Loading...</div>
       </AdminShell>
     );
   }
 
-  if (state === "error" || !data) {
+  if (state === "error" || !cockpit) {
+    const is404 = errorMsg?.includes("404");
     return (
-      <AdminShell active="opportunities" eyebrow="Error" title="Opportunity" subtitle="加载失败">
+      <AdminShell active="opportunities" eyebrow={is404 ? "Not Found" : "Error"} title="Opportunity" subtitle={is404 ? "机会不存在" : "加载失败"}>
         <div className="error-state">
-          <p>加载失败：{error || "Unknown error"}</p>
-          <button className="button primary" type="button" onClick={() => { setRetryKey((k) => k + 1); }}>重试</button>
+          <p>{is404 ? "该机会不存在或已被删除" : `加载失败：${errorMsg || "Unknown error"}`}</p>
+          {!is404 && <button className="button primary" type="button" onClick={() => setRetryKey((k) => k + 1)}>重试</button>}
         </div>
       </AdminShell>
     );
   }
 
+  const opp = cockpit.opportunity;
   const isRunning = state === "running";
-  const waitingDecision = data.decisions?.find((d) => d.status === "waiting");
+  const waitingDecision = cockpit.decisions?.find((d) => d.status === "waiting");
+
+  // Map cockpit messages to ConversationThread expected format
+  const messages: CockpitMessage[] = cockpit.messages || [];
 
   return (
     <AdminShell
       active="opportunities"
       eyebrow="Company Cockpit / Opportunity"
-      title={data.title}
-      subtitle={`${data.customer?.name || ""} · ${data.desired_outcome || ""}`}
+      title={opp.title}
+      subtitle={`${cockpit.customer?.name || ""} · ${opp.desired_outcome || ""}`}
     >
       <div className="detail-header">
         <Link className="button ghost" href="/admin/opportunities">← 返回机会列表</Link>
-        <StageBadge stage={data.stage} />
-        <span>{new Date(data.updated_at).toLocaleString()}</span>
+        <StageBadge stage={opp.stage} />
+        <span>{new Date(opp.updated_at).toLocaleString()}</span>
       </div>
 
       <section className="opportunity-summary">
-        <article>
-          <span>Next Step</span>
-          <strong>{data.next_step || "未设置下一步"}</strong>
-        </article>
-        <article>
-          <span>Estimated Value</span>
-          <strong>{data.estimated_value ? `¥${data.estimated_value.toLocaleString()}` : "待估算"}</strong>
-        </article>
-        <article>
-          <span>Probability</span>
-          <strong>{data.probability != null ? `${data.probability}%` : "N/A"}</strong>
-        </article>
+        <article><span>Next Step</span><strong>{opp.next_step || "未设置下一步"}</strong></article>
+        <article><span>Estimated Value</span><strong>{opp.estimated_value ? `¥${opp.estimated_value.toLocaleString()}` : "待估算"}</strong></article>
+        <article><span>Probability</span><strong>{opp.probability != null ? `${opp.probability}%` : "N/A"}</strong></article>
       </section>
 
-      {/* FE-03: Run Sales Agent */}
       <section className="agent-actions" aria-label="Agent actions">
-        <button
-          className="button primary"
-          type="button"
-          onClick={handleRunSalesAgent}
-          disabled={isRunning}
-        >
+        <button className="button primary" type="button" onClick={handleRunSalesAgent} disabled={isRunning}>
           {isRunning ? "Running Sales Agent..." : "Run Sales Agent"}
         </button>
         {isRunning && <span className="running-indicator">Agent 运行中，请稍候...</span>}
-        {data.agent_runs && data.agent_runs.length > 0 && (
-          <small className="meta">{data.agent_runs.length} agent run(s) recorded</small>
-        )}
+        {cockpit.agent_runs.length > 0 && <small className="meta">{cockpit.agent_runs.length} agent run(s) recorded</small>}
       </section>
 
       <div className="opportunity-detail-grid">
         <div className="detail-main">
-          {/* FE-04+06: Agent Workbench */}
-          <AgentWorkbench
-            artifacts={data.artifacts || []}
-            agentRuns={data.agent_runs || []}
-          />
-
-          {/* Conversation Thread */}
-          <ConversationThread messages={data.recent_messages || []} />
-
-          {/* FE-07: Audit Trail */}
-          <AuditTrail logs={data.audit_logs || []} />
+          <AgentWorkbench artifacts={cockpit.artifacts} agentRuns={cockpit.agent_runs} />
+          <ConversationThread messages={messages} />
+          <AuditTrail logs={cockpit.audit_logs} />
         </div>
 
         <aside className="detail-sidebar">
-          {/* Customer & contact info */}
           <section className="opportunity-inspector" aria-label="Customer info">
-            {data.customer && (
+            {cockpit.customer && (
               <div className="inspector-section">
-                <div className="inspector-title"><span>Customer</span><strong>{data.customer.name}</strong></div>
+                <div className="inspector-title"><span>Customer</span><strong>{cockpit.customer.name}</strong></div>
                 <dl>
-                  <div><dt>Email</dt><dd>{data.customer.owner_email}</dd></div>
-                  <div><dt>Industry</dt><dd>{data.customer.industry || "N/A"}</dd></div>
-                  <div><dt>Size</dt><dd>{data.customer.company_size || "N/A"}</dd></div>
+                  <div><dt>Email</dt><dd>{cockpit.customer.owner_email}</dd></div>
+                  <div><dt>Industry</dt><dd>{cockpit.customer.industry || "N/A"}</dd></div>
+                  <div><dt>Size</dt><dd>{cockpit.customer.company_size || "N/A"}</dd></div>
                 </dl>
               </div>
             )}
-            {data.primary_contact && (
+            {cockpit.contact && (
               <div className="inspector-section">
-                <div className="inspector-title"><span>Contact</span><strong>{data.primary_contact.name || "N/A"}</strong></div>
+                <div className="inspector-title"><span>Contact</span><strong>{cockpit.contact.name || "N/A"}</strong></div>
                 <dl>
-                  <div><dt>Email</dt><dd>{data.primary_contact.email || "N/A"}</dd></div>
-                  <div><dt>Method</dt><dd>{data.primary_contact.contact_method || "N/A"}</dd></div>
+                  <div><dt>Email</dt><dd>{cockpit.contact.email || "N/A"}</dd></div>
+                  <div><dt>Method</dt><dd>{cockpit.contact.contact_method || "N/A"}</dd></div>
                 </dl>
               </div>
             )}
             <div className="inspector-section">
               <div className="inspector-title"><span>Opportunity</span></div>
               <dl>
-                <div><dt>Budget</dt><dd>{data.budget_range || "N/A"}</dd></div>
-                <div><dt>Problem</dt><dd>{data.problem_summary || "N/A"}</dd></div>
+                <div><dt>Budget</dt><dd>{opp.budget_range || "N/A"}</dd></div>
+                <div><dt>Problem</dt><dd>{opp.problem_summary || "N/A"}</dd></div>
               </dl>
             </div>
           </section>
 
-          {/* FE-05: Approval Gate */}
-          <ApprovalGate decisions={data.decisions || []} onDecisionChanged={() => { setRetryKey((k) => k + 1); }} />
+          <ApprovalGate decisions={cockpit.decisions} onDecisionChanged={() => { setRetryKey((k) => k + 1); }} />
+
+          {/* Delivery Jobs */}
+          {cockpit.delivery_jobs.length > 0 && (
+            <section className="delivery-panel" aria-label="Delivery jobs">
+              <div className="inspector-title"><span>Delivery</span></div>
+              {cockpit.delivery_jobs.map((j) => (
+                <div className="delivery-item" key={j.id}>
+                  <strong>{j.subject}</strong>
+                  <small>{j.channel} · {j.status} · {new Date(j.created_at).toLocaleString()}</small>
+                </div>
+              ))}
+            </section>
+          )}
         </aside>
       </div>
 
-      {/* FE-09: Status indicator */}
       {waitingDecision && (
         <div className="status-bar waiting-approval">
-          <span>⏳</span> 等待审批 &mdash; Decision {waitingDecision.id.slice(0, 8)}...
+          <span>⏳</span> 等待审批 — Decision {waitingDecision.id.slice(0, 8)}...
         </div>
       )}
     </AdminShell>
