@@ -10,6 +10,7 @@ from app.models import (
 from app.schemas import (
     AdminOpportunityCockpitOut, OpportunityMessageCreateIn,
     OpportunityMessageCreateOut, OpportunityUpdate,
+    ProposalDraftResponseOut,
 )
 from app.services.proposal_draft_workflow import run_proposal_draft_workflow
 from app.services.sales_reply_workflow import run_sales_reply_workflow
@@ -621,7 +622,7 @@ class ProposalDraftRequest(BaseModel):
     opportunity_id: str
 
 
-@router.post("/admin/agent-runs/proposal-draft")
+@router.post("/admin/agent-runs/proposal-draft", response_model=ProposalDraftResponseOut)
 def trigger_proposal_draft(
     req: ProposalDraftRequest,
     db: Session = Depends(get_db),

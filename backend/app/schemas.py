@@ -501,3 +501,37 @@ class RecordedOpportunityOut(BaseModel):
 class OpportunityMessageCreateOut(BaseModel):
     message: RecordedMessageOut
     opportunity: RecordedOpportunityOut
+
+
+# ── Proposal Draft ──
+class ProposalDraftAgentRunOut(BaseModel):
+    id: str
+    agent_profile_id: str
+    status: str
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+
+
+class ProposalDraftArtifactOut(BaseModel):
+    id: str
+    agent_run_id: str | None = None
+    type: str
+    title: str
+    content_markdown: str | None = None
+    content_json: dict | None = None
+    model: str
+    requires_approval: bool
+    created_at: datetime
+
+
+class ProposalDraftDecisionOut(BaseModel):
+    id: str
+    question: str
+    recommendation: str | None = None
+    status: str
+
+
+class ProposalDraftResponseOut(BaseModel):
+    agent_run: ProposalDraftAgentRunOut
+    artifact: ProposalDraftArtifactOut
+    decision: ProposalDraftDecisionOut
