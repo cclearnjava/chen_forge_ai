@@ -273,6 +273,21 @@ export async function getOpportunityCockpit(id: string): Promise<AdminOpportunit
   return api(`/admin/opportunities/${id}/cockpit`);
 }
 
+export type RecordCustomerReplyInput = {
+  body_markdown: string;
+  sender_label?: string;
+};
+
+export async function recordCustomerReply(
+  opportunityId: string,
+  input: RecordCustomerReplyInput,
+): Promise<{ message: CockpitMessage; opportunity: CockpitOpportunity }> {
+  return api(`/admin/opportunities/${opportunityId}/messages`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 export async function markDeliveryJobSent(
   deliveryJobId: string,
   operatorNote?: string,

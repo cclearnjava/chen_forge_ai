@@ -8,6 +8,7 @@ import AgentWorkbench from "@/components/admin/agent-workbench";
 import ApprovalGate from "@/components/admin/approval-gate";
 import AuditTrail from "@/components/admin/audit-trail";
 import ConversationThread from "@/components/admin/conversation-thread";
+import CustomerReplyComposer from "@/components/admin/customer-reply-composer";
 import DeliveryPanel from "@/components/admin/delivery-panel";
 import StageBadge from "@/components/admin/stage-badge";
 import {
@@ -124,6 +125,10 @@ export default function OpportunityDetailPage() {
         <div className="detail-main">
           <AgentWorkbench artifacts={cockpit.artifacts} agentRuns={cockpit.agent_runs} />
           <ConversationThread messages={messages} />
+          <CustomerReplyComposer
+            opportunityId={opportunityId}
+            onRecorded={() => { setRetryKey((k) => k + 1); }}
+          />
           <AuditTrail logs={cockpit.audit_logs} />
         </div>
 
