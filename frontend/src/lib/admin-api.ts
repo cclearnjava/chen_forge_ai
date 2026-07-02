@@ -288,6 +288,21 @@ export async function recordCustomerReply(
   });
 }
 
+export type ProposalDraftResponse = {
+  agent_run: CockpitAgentRun;
+  artifact: CockpitArtifact;
+  decision: CockpitDecision;
+};
+
+export async function runProposalDraftAgent(
+  opportunityId: string,
+): Promise<ProposalDraftResponse> {
+  return api("/admin/agent-runs/proposal-draft", {
+    method: "POST",
+    body: JSON.stringify({ opportunity_id: opportunityId }),
+  });
+}
+
 export async function markDeliveryJobSent(
   deliveryJobId: string,
   operatorNote?: string,

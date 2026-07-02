@@ -13,6 +13,7 @@ import DeliveryPanel from "@/components/admin/delivery-panel";
 import StageBadge from "@/components/admin/stage-badge";
 import {
   getOpportunityCockpit,
+  runProposalDraftAgent,
   runSalesReplyAgent,
   type AdminOpportunityCockpit,
 } from "@/lib/admin-api";
@@ -67,6 +68,18 @@ export default function OpportunityDetailPage() {
     }
   };
 
+  const handleGenerateProposal = async () => {
+    if (!opportunityId) return;
+    setState("running");
+    try {
+      await runProposalDraftAgent(opportunityId);
+      await doFetch(opportunityId);
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : "Proposal generation failed");
+      setState("error");
+    }
+  };
+
   if (state === "loading") {
     return (
       <AdminShell active="opportunities" eyebrow="Loading..." title="Opportunity" subtitle="正在加载">
@@ -115,7 +128,10 @@ export default function OpportunityDetailPage() {
 
       <section className="agent-actions" aria-label="Agent actions">
         <button className="button primary" type="button" onClick={handleRunSalesAgent} disabled={isRunning}>
-          {isRunning ? "Running Sales Agent..." : "Run Sales Agent"}
+          {isRunning ? "Running..." : "Run Sales Agent"}
+        </button>
+        <button className="button primary" type="button" onClick={handleGenerateProposal} disabled={isRunning}>
+          {isRunning ? "Running..." : "Generate Proposal Draft"}
         </button>
         {isRunning && <span className="running-indicator">Agent 运行中，请稍候...</span>}
         {cockpit.agent_runs.length > 0 && <small className="meta">{cockpit.agent_runs.length} agent run(s) recorded</small>}

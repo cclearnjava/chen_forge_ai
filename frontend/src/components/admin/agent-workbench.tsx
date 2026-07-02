@@ -29,8 +29,9 @@ export default function AgentWorkbench({
   const draft = findArtifact(artifacts, "customer_reply_draft");
   const questions = findArtifact(artifacts, "discovery_questions");
   const review = findArtifact(artifacts, "review");
+  const proposal = findArtifact(artifacts, "proposal_draft");
 
-  if (!draft && !review) {
+  if (!draft && !review && !proposal) {
     return (
       <section className="agent-workbench" aria-label="Agent output">
         <div className="empty-state">
@@ -98,6 +99,22 @@ export default function AgentWorkbench({
           <p className="recommendation">
             Recommendation: <strong>{qualityReview.recommendation}</strong>
           </p>
+        </article>
+      )}
+
+      {proposal && (
+        <article className="workbench-card">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">Proposal Agent</p>
+              <h2>PoC 方案草案</h2>
+            </div>
+            <span className="badge">requires approval</span>
+          </div>
+          <div className="markdown-body" style={{ whiteSpace: "pre-wrap" }}>
+            {proposal.content_markdown}
+          </div>
+          <small className="meta">model: {proposal.model} · {new Date(proposal.created_at).toLocaleString()}</small>
         </article>
       )}
 
