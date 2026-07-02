@@ -11,6 +11,7 @@ from app.schemas import (
     AdminOpportunityCockpitOut, OpportunityMessageCreateIn,
     OpportunityMessageCreateOut, OpportunityUpdate,
 )
+from app.services.proposal_draft_workflow import run_proposal_draft_workflow
 from app.services.sales_reply_workflow import run_sales_reply_workflow
 
 
@@ -610,5 +611,60 @@ def record_customer_reply(
         "opportunity": {
             "id": opp.id,
             "next_step": opp.next_step,
+        },
+    }
+
+
+# ── BE-05: Proposal Draft ──
+
+class ProposalDraftRequest(BaseModel):
+    opportunity_id: str
+
+
+@router.post("/admin/agent-runs/proposal-draft")
+def trigger_proposal_draft(
+    req: ProposalDraftRequest,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(get_admin_email),
+):
+    opp = db.query(Opportunity).filter(Opportunity.id == req.opportunity_id).first()
+    if not opp:
+        raise HTTPException(status_code=404, detail="Opportunity not found")
+
+    try:
+        result = run_proposal_draft_workflow(db, req.opportunity_id)
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Workflow execution failed")
+
+    r = result
+    return {
+        "agent_run": {
+            "id": r["agent_run"].id,
+            "agent_profile_id": r["agent_run"].agent_profile_id,
+            "status": _enum_value(r["agent_run"].status),
+            "started_at": _to_iso(r["agent_run"].started_at),
+            "completed_at": _to_iso(r["agent_run"].completed_at),
+        },
+        "artifact": {
+            "id": r["artifact"].id,
+            "agent_run_id": r["artifact"].agent_run_id,
+            "type": _enum_value(r["artifact"].type),
+            "title": r["artifact"].title,
+            "content_markdown": r["artifact"].content_markdown,
+            "content_json": r["artifact"].content_json,
+            "model": r["artifact"].model,
+            "requires_approval": r["artifact"].requires_approval,
+            "created_at": _to_iso(r["artifact"].created_at),
+        },
+        "decision": {
+            "id": r["decision"].id,
+            "question": r["decision"].question,
+            "recommendation": r["decision"].recommendation,
+            "status": _enum_value(r["decision"].status),
         },
     }

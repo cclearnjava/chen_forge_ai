@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session, joinedload
-from app.models import Opportunity, Message
+from app.models import Artifact, ArtifactType, Opportunity, Message
 
 
 def build_opportunity_agent_context(db: Session, opportunity_id: str) -> dict:
@@ -34,3 +34,44 @@ def build_opportunity_agent_context(db: Session, opportunity_id: str) -> dict:
         "messages": messages,
         "lead_id": opp.lead_id,
     }
+
+
+def build_opportunity_proposal_context(db: Session, opportunity_id: str) -> dict:
+    """Extended context for Proposal Agent — includes historical artifacts."""
+    ctx = build_opportunity_agent_context(db, opportunity_id)
+    opp = ctx["opportunity"]
+
+    customer_reply_draft = (
+        db.query(Artifact)
+        .filter(
+            Artifact.opportunity_id == opportunity_id,
+            Artifact.type == ArtifactType.customer_reply_draft,
+        )
+        .order_by(Artifact.created_at.desc())
+        .first()
+    )
+
+    discovery_questions = (
+        db.query(Artifact)
+        .filter(
+            Artifact.opportunity_id == opportunity_id,
+            Artifact.type == ArtifactType.discovery_questions,
+        )
+        .order_by(Artifact.created_at.desc())
+        .first()
+    )
+
+    review = (
+        db.query(Artifact)
+        .filter(
+            Artifact.opportunity_id == opportunity_id,
+            Artifact.type == ArtifactType.review,
+        )
+        .order_by(Artifact.created_at.desc())
+        .first()
+    )
+
+    ctx["customer_reply_draft"] = customer_reply_draft
+    ctx["discovery_questions"] = discovery_questions
+    ctx["review"] = review
+    return ctx

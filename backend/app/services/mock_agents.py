@@ -73,3 +73,116 @@ def review_sales_reply(reply_text: str) -> dict:
         "summary": summary,
         "recommendation": recommendation,
     }
+
+
+def generate_proposal_draft(context: dict) -> dict:
+    """Generate a structured PoC proposal draft from opportunity context."""
+    customer = context.get("customer")
+    opp = context.get("opportunity")
+    contact = context.get("primary_contact")
+    messages = context.get("messages", [])
+    draft = context.get("customer_reply_draft")
+    questions = context.get("discovery_questions")
+
+    company = customer.name if customer else "贵公司"
+    contact_name = contact.name if contact and contact.name else "负责人"
+    problem = opp.problem_summary if opp and opp.problem_summary else "业务需求"
+    outcome = opp.desired_outcome if opp and opp.desired_outcome else "AI 落地"
+
+    # Build a simple summary of conversation context
+    msg_summary = ""
+    if messages:
+        recent = messages[-1]
+        msg_summary = f"客户最近回复：{recent.body_markdown[:120]}"
+
+    # Build confirmed goals from discovery questions if available
+    goals = [outcome]
+    if questions and questions.content_json:
+        qs = questions.content_json.get("questions", [])
+        if qs:
+            goals.append(f"已澄清 {len(qs)} 个关键问题")
+
+    risks = [
+        "客户数据质量和完整性需要在 PoC 启动前确认。",
+        "对接现有系统（如 CRM/ERP）的接口和时间依赖于客户侧的 IT 配合。",
+        "PoC 的验收标准需客户与 ChenForge 双方书面确认。",
+    ]
+
+    content_markdown = f"""# PoC 方案草案
+
+## 1. 客户背景
+
+{company}（{contact_name}）当前面临的核心痛点是：{problem}
+
+## 2. 已确认目标
+
+{chr(10).join(f'- {g}' for g in goals)}
+
+## 3. 建议 PoC 范围
+
+- 聚焦 {outcome} 的核心场景验证。
+- 在受控数据范围内完成一轮完整的 AI 辅助业务流程。
+- 输出一份 PoC 验证报告，包含技术可行性、业务价值评估和下一步建议。
+
+## 4. 不包含范围
+
+- 不包含生产环境部署与运维。
+- 不包含全量数据迁移。
+- 不包含第三方系统深度集成（如 CRM/ERP 接口开发）。
+- 不包含后续长期维护和 SLA 承诺。
+
+## 5. 交付物
+
+- PoC 验证环境（ChenForge 提供临时实例）。
+- PoC 运行报告（含准确率、响应时间、人工节省等指标）。
+- 下一步实施建议。
+
+## 6. 建议时间计划
+
+- 第 1 周：需求确认与数据准备。
+- 第 2-3 周：PoC 开发与内部测试。
+- 第 4 周：客户验证与报告输出。
+
+（以上时间为初步建议，以双方确认的验收标准为准。）
+
+## 7. 前置假设
+
+- 客户可提供用于 PoC 的历史数据或知识库。
+- 客户侧有至少一位对接人可参与需求确认和验证。
+- PoC 期间不要求对接生产系统。
+
+## 8. 风险与边界
+
+{chr(10).join(f'- {r}' for r in risks)}
+
+## 9. 需要客户确认的问题
+
+- PoC 的验收标准是什么？（例如：准确率 ≥ X%、响应时间 ≤ Y 秒）
+- 是否有明确的上线时间节点？
+- 数据是否涉及敏感信息，需要额外的合规处理？
+- 是否已有整理好的历史数据或知识库可直接用于 PoC？
+
+## 10. 下一步建议
+
+建议先安排一次需求对齐会议，确认 PoC 范围和验收标准后启动。"""
+
+    content_json = {
+        "customer_background": f"{company}，{problem}",
+        "confirmed_goals": goals,
+        "poc_scope": [f"聚焦 {outcome}", "受控数据范围验证", "输出 PoC 验证报告"],
+        "out_of_scope": ["生产环境部署", "全量数据迁移", "第三方系统深度集成", "长期 SLA"],
+        "deliverables": ["PoC 验证环境", "PoC 运行报告", "下一步建议"],
+        "timeline": ["第1周：需求确认", "第2-3周：开发测试", "第4周：客户验证"],
+        "assumptions": ["客户提供历史数据", "客户有对接人", "不要求对接生产系统"],
+        "risks": risks,
+        "questions_for_customer": [
+            "PoC 验收标准是什么？", "是否有上线时间节点？",
+            "数据是否涉及敏感信息？", "是否有可用的历史数据或知识库？",
+        ],
+        "next_step": "安排需求对齐会议，确认 PoC 范围和验收标准",
+    }
+
+    return {
+        "content_markdown": content_markdown,
+        "content_json": content_json,
+    }
