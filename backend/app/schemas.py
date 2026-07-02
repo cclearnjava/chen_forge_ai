@@ -475,3 +475,14 @@ class AdminOpportunityCockpitOut(BaseModel):
     delivery_jobs: list[CockpitDeliveryJobOut] = Field(default_factory=list)
     audit_logs: list[CockpitAuditLogOut] = Field(default_factory=list)
     agent_runs: list[CockpitAgentRunOut] = Field(default_factory=list)
+
+
+# ── Opportunity Message Recording ──
+class OpportunityMessageCreateIn(BaseModel):
+    body_markdown: str = Field(..., min_length=1)
+    sender_label: str | None = None
+
+
+class OpportunityMessageCreateOut(BaseModel):
+    message: dict
+    opportunity: dict

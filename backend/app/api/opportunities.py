@@ -5,9 +5,11 @@ from app.db import get_db
 from app.auth.middleware import get_admin_email
 from app.models import (
     AgentRun, Artifact, AuditLog, Contact, Conversation, Customer, Decision,
-    DeliveryJob, Message, Opportunity, OpportunityStage,
+    DeliveryJob, Message, MessageSenderType, Opportunity, OpportunityStage,
 )
-from app.schemas import AdminOpportunityCockpitOut, OpportunityUpdate
+from app.schemas import (
+    AdminOpportunityCockpitOut, OpportunityMessageCreateIn, OpportunityUpdate,
+)
 from app.services.sales_reply_workflow import run_sales_reply_workflow
 
 
@@ -543,4 +545,69 @@ def get_opportunity_cockpit(
         "delivery_jobs": delivery_jobs,
         "audit_logs": audit_logs,
         "agent_runs": agent_runs,
+    }
+
+
+# ── BE-02: Record Customer Reply ──
+
+@router.post("/admin/opportunities/{opportunity_id}/messages", status_code=201)
+def record_customer_reply(
+    opportunity_id: str,
+    req: OpportunityMessageCreateIn,
+    db: Session = Depends(get_db),
+    admin: str = Depends(get_admin_email),
+):
+    opp = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
+    if not opp:
+        raise HTTPException(status_code=404, detail="Opportunity not found")
+    if not opp.conversation_id:
+        raise HTTPException(status_code=422, detail="Opportunity has no linked conversation")
+
+    conv = db.query(Conversation).filter(Conversation.id == opp.conversation_id).first()
+    if not conv:
+        raise HTTPException(status_code=422, detail="Conversation not found")
+
+    message = Message(
+        conversation_id=opp.conversation_id,
+        customer_id=opp.customer_id,
+        contact_id=opp.primary_contact_id,
+        sender_type=MessageSenderType.customer,
+        sender_label=req.sender_label or "客户回复",
+        body_markdown=req.body_markdown,
+        source="manual",
+    )
+    db.add(message)
+    db.flush()
+
+    opp.next_step = "Review customer reply"
+
+    db.add(AuditLog(
+        lead_id=opp.lead_id,
+        actor=admin,
+        action="customer_message_recorded",
+        details_json={
+            "opportunity_id": opp.id,
+            "conversation_id": opp.conversation_id,
+            "message_id": message.id,
+            "sender_type": "customer",
+            "source": "manual",
+        },
+    ))
+
+    db.commit()
+
+    return {
+        "message": {
+            "id": message.id,
+            "conversation_id": message.conversation_id,
+            "sender_type": _enum_value(message.sender_type),
+            "sender_label": message.sender_label,
+            "body_markdown": message.body_markdown,
+            "source": message.source,
+            "created_at": _to_iso(message.created_at),
+        },
+        "opportunity": {
+            "id": opp.id,
+            "next_step": opp.next_step,
+        },
     }
