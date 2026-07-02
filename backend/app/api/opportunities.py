@@ -8,7 +8,8 @@ from app.models import (
     DeliveryJob, Message, MessageSenderType, Opportunity, OpportunityStage,
 )
 from app.schemas import (
-    AdminOpportunityCockpitOut, OpportunityMessageCreateIn, OpportunityUpdate,
+    AdminOpportunityCockpitOut, OpportunityMessageCreateIn,
+    OpportunityMessageCreateOut, OpportunityUpdate,
 )
 from app.services.sales_reply_workflow import run_sales_reply_workflow
 
@@ -550,7 +551,7 @@ def get_opportunity_cockpit(
 
 # ── BE-02: Record Customer Reply ──
 
-@router.post("/admin/opportunities/{opportunity_id}/messages", status_code=201)
+@router.post("/admin/opportunities/{opportunity_id}/messages", status_code=201, response_model=OpportunityMessageCreateOut)
 def record_customer_reply(
     opportunity_id: str,
     req: OpportunityMessageCreateIn,

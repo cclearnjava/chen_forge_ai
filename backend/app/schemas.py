@@ -483,6 +483,21 @@ class OpportunityMessageCreateIn(BaseModel):
     sender_label: str | None = None
 
 
+class RecordedMessageOut(BaseModel):
+    id: str
+    conversation_id: str
+    sender_type: str
+    sender_label: str | None = None
+    body_markdown: str
+    source: str
+    created_at: datetime
+
+
+class RecordedOpportunityOut(BaseModel):
+    id: str
+    next_step: str | None = None
+
+
 class OpportunityMessageCreateOut(BaseModel):
-    message: dict
-    opportunity: dict
+    message: RecordedMessageOut
+    opportunity: RecordedOpportunityOut
