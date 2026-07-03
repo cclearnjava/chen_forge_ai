@@ -4,9 +4,9 @@ from sqlalchemy.orm import Session, joinedload
 from app.db import get_db
 from app.auth.middleware import get_admin_email
 from app.models import (
-    Artifact, AuditLog, Conversation, Customer,
+    Artifact, ArtifactType, AuditLog, Contact, Conversation, Customer,
     Decision, DecisionStatus, DeliveryChannel, DeliveryJob, DeliveryStatus,
-    Message, MessageSenderType, Opportunity,
+    Message, MessageSenderType, Opportunity, OpportunityStage,
 )
 from app.schemas import DecisionAction
 
@@ -47,6 +47,77 @@ def _guard_waiting(d: Decision | None, decision_id: str) -> Decision:
     return d
 
 
+def _resolve_decision_common(d: Decision, req: DecisionAction):
+    d.status = DecisionStatus.approved
+    d.operator_note = req.operator_note
+    d.resolved_at = dt.utcnow()
+
+
+def _approve_customer_reply_decision(d: Decision, artifact: Artifact, opp: Opportunity,
+                                      db: Session, admin: str, req: DecisionAction):
+    _resolve_decision_common(d, req)
+
+    if not d.lead_id:
+        raise HTTPException(status_code=422, detail="Decision has no linked lead")
+    if not opp.conversation_id:
+        raise HTTPException(status_code=422, detail="Opportunity has no linked conversation")
+
+    recipient = "unknown"
+    if opp.primary_contact_id:
+        contact = db.query(Contact).filter(Contact.id == opp.primary_contact_id).first()
+        if contact:
+            recipient = contact.email or contact.name or "unknown"
+    if recipient == "unknown" and opp.customer_id:
+        customer = db.query(Customer).filter(Customer.id == opp.customer_id).first()
+        if customer:
+            recipient = customer.owner_email
+
+    job = DeliveryJob(
+        lead_id=d.lead_id, artifact_id=artifact.id,
+        channel=DeliveryChannel.manual_copy, recipient=recipient,
+        subject=f"ChenForge AI 回复：{opp.title}",
+        body_markdown=artifact.content_markdown or "",
+        status=DeliveryStatus.draft,
+    )
+    db.add(job)
+    db.flush()
+
+    message = Message(
+        conversation_id=opp.conversation_id, customer_id=opp.customer_id,
+        contact_id=opp.primary_contact_id, sender_type=MessageSenderType.owner,
+        sender_label=admin, body_markdown=artifact.content_markdown or "",
+        source="delivery",
+    )
+    db.add(message)
+    db.flush()
+
+    db.add(AuditLog(
+        lead_id=d.lead_id, actor=admin, action="decision_approved",
+        details_json={
+            "decision_id": d.id, "artifact_id": artifact.id,
+            "opportunity_id": opp.id, "delivery_job_id": job.id,
+            "message_id": message.id,
+        },
+    ))
+
+
+def _approve_proposal_decision(d: Decision, artifact: Artifact, opp: Opportunity,
+                                db: Session, admin: str, req: DecisionAction):
+    _resolve_decision_common(d, req)
+
+    opp.stage = OpportunityStage.proposal
+    opp.next_step = "Review approved proposal with customer"
+
+    db.add(AuditLog(
+        lead_id=d.lead_id, actor=admin, action="proposal_approved",
+        details_json={
+            "decision_id": d.id, "artifact_id": artifact.id,
+            "opportunity_id": opp.id, "artifact_type": "proposal_draft",
+            "operator_note": req.operator_note,
+        },
+    ))
+
+
 @router.post("/{decision_id}/approve")
 def approve_decision(
     decision_id: str,
@@ -64,67 +135,14 @@ def approve_decision(
     opp = db.query(Opportunity).filter(Opportunity.id == d.opportunity_id).first()
     if not opp:
         raise HTTPException(status_code=422, detail="Decision has no linked opportunity")
-    if not d.lead_id:
-        raise HTTPException(status_code=422, detail="Decision has no linked lead")
-    if not opp.conversation_id:
-        raise HTTPException(status_code=422, detail="Opportunity has no linked conversation")
 
-    # Resolve the decision
-    d.status = DecisionStatus.approved
-    d.operator_note = req.operator_note
-    d.resolved_at = dt.utcnow()
-
-    # Determine recipient from primary_contact or customer
-    recipient = "unknown"
-    if opp.primary_contact_id:
-        from app.models import Contact
-        contact = db.query(Contact).filter(Contact.id == opp.primary_contact_id).first()
-        if contact:
-            recipient = contact.email or contact.name or "unknown"
-    if recipient == "unknown" and opp.customer_id:
-        customer = db.query(Customer).filter(Customer.id == opp.customer_id).first()
-        if customer:
-            recipient = customer.owner_email
-
-    # Create DeliveryJob
-    job = DeliveryJob(
-        lead_id=d.lead_id,
-        artifact_id=artifact.id,
-        channel=DeliveryChannel.manual_copy,
-        recipient=recipient,
-        subject=f"ChenForge AI 回复：{opp.title}",
-        body_markdown=artifact.content_markdown or "",
-        status=DeliveryStatus.draft,
-    )
-    db.add(job)
-    db.flush()
-
-    # Write Message to conversation
-    message = Message(
-        conversation_id=opp.conversation_id,
-        customer_id=opp.customer_id,
-        contact_id=opp.primary_contact_id,
-        sender_type=MessageSenderType.owner,
-        sender_label=admin,
-        body_markdown=artifact.content_markdown or "",
-        source="delivery",
-    )
-    db.add(message)
-    db.flush()
-
-    # Write AuditLog
-    db.add(AuditLog(
-        lead_id=d.lead_id,
-        actor=admin,
-        action="decision_approved",
-        details_json={
-            "decision_id": d.id,
-            "artifact_id": artifact.id,
-            "opportunity_id": opp.id,
-            "delivery_job_id": job.id,
-            "message_id": message.id,
-        },
-    ))
+    if artifact.type == ArtifactType.customer_reply_draft:
+        _approve_customer_reply_decision(d, artifact, opp, db, admin, req)
+    elif artifact.type == ArtifactType.proposal_draft:
+        _approve_proposal_decision(d, artifact, opp, db, admin, req)
+    else:
+        raise HTTPException(status_code=422,
+                            detail=f"Unsupported artifact type for approval: {artifact.type.value}")
 
     db.commit()
     return {"decision": _decision_to_dict(d)}
