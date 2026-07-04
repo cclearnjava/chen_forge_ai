@@ -320,10 +320,17 @@ export async function getApprovedProposal(
   return api(`/admin/opportunities/${opportunityId}/approved-proposal`);
 }
 
-export function getApprovedProposalPdfUrl(opportunityId: string): string {
+export async function downloadApprovedProposalPdf(opportunityId: string): Promise<Blob> {
   const base = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000/api/v1";
   const token = process.env.NEXT_PUBLIC_ADMIN_TOKEN || "admin-dev-token";
-  return `${base}/admin/opportunities/${opportunityId}/approved-proposal.pdf?token=${token}`;
+  const res = await fetch(`${base}/admin/opportunities/${opportunityId}/approved-proposal.pdf`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`${res.status}: ${body || res.statusText}`);
+  }
+  return res.blob();
 }
 
 export async function markDeliveryJobSent(

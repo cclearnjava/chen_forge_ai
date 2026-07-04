@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getApprovedProposal, getApprovedProposalPdfUrl, type ApprovedProposalData } from "@/lib/admin-api";
+import { downloadApprovedProposalPdf, getApprovedProposal, type ApprovedProposalData } from "@/lib/admin-api";
 
 export default function ApprovedProposalPanel({ opportunityId }: { opportunityId: string }) {
   const [state, setState] = useState<"loading" | "empty" | "ready" | "error">("loading");
@@ -27,16 +27,23 @@ export default function ApprovedProposalPanel({ opportunityId }: { opportunityId
     return () => { cancelled = true; };
   }, [opportunityId]);
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     setDownloading(true);
-    const url = getApprovedProposalPdfUrl(opportunityId);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `chenforge-proposal-${opportunityId.slice(0, 8)}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => setDownloading(false), 1500);
+    try {
+      const blob = await downloadApprovedProposalPdf(opportunityId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `chenforge-proposal-${opportunityId.slice(0, 8)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Download failed");
+    } finally {
+      setDownloading(false);
+    }
   };
 
   return (
