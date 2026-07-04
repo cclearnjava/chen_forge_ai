@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from starlette.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session, joinedload
 from app.db import get_db
@@ -12,7 +13,9 @@ from app.schemas import (
     OpportunityMessageCreateOut, OpportunityUpdate,
     ProposalDraftResponseOut,
 )
+from app.services.approved_proposal import find_latest_approved_proposal
 from app.services.proposal_draft_workflow import run_proposal_draft_workflow
+from app.services.proposal_pdf_renderer import render_approved_proposal_pdf
 from app.services.sales_reply_workflow import run_sales_reply_workflow
 
 
@@ -669,3 +672,50 @@ def trigger_proposal_draft(
             "status": _enum_value(r["decision"].status),
         },
     }
+
+
+# ── BE-02/03: Approved Proposal JSON + PDF ──
+
+@router.get("/admin/opportunities/{opportunity_id}/approved-proposal")
+def get_approved_proposal(
+    opportunity_id: str,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(get_admin_email),
+):
+    data = find_latest_approved_proposal(db, opportunity_id)
+    if not data:
+        raise HTTPException(status_code=404, detail="No approved proposal found for this opportunity")
+    return data
+
+
+@router.get("/admin/opportunities/{opportunity_id}/approved-proposal.pdf")
+def download_approved_proposal_pdf(
+    opportunity_id: str,
+    db: Session = Depends(get_db),
+    admin: str = Depends(get_admin_email),
+):
+    data = find_latest_approved_proposal(db, opportunity_id)
+    if not data:
+        raise HTTPException(status_code=404, detail="No approved proposal found for this opportunity")
+
+    pdf_bytes = render_approved_proposal_pdf(data)
+
+    db.add(AuditLog(
+        lead_id=None,
+        actor=admin,
+        action="approved_proposal_pdf_downloaded",
+        details_json={
+            "opportunity_id": opportunity_id,
+            "artifact_id": data["artifact_id"],
+            "decision_id": data["decision_id"],
+        },
+    ))
+    db.commit()
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename=chenforge-proposal-{opportunity_id[:8]}.pdf"
+        },
+    )
