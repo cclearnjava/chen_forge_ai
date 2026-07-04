@@ -7,36 +7,26 @@ from app.models import Artifact, ArtifactType, Customer, Decision, DecisionStatu
 def find_latest_approved_proposal(db: Session, opportunity_id: str) -> dict | None:
     """Return the latest approved proposal_draft DTO, or None if not found.
 
-    Criteria:
-      - Artifact.opportunity_id == opportunity_id
-      - Artifact.type == proposal_draft
-      - Linked Decision.status == approved
-      - Decision.resolved_at is not null
-      - Ordered by Decision.resolved_at desc
+    Single JOIN query: Decision(approved + opportunity_id + resolved_at not null)
+    JOIN Artifact(type=proposal_draft) ON decision.artifact_id = artifact.id.
+    Ordered by Decision.resolved_at desc.
     """
-    decision = (
-        db.query(Decision)
+    result = (
+        db.query(Decision, Artifact)
+        .join(Artifact, Artifact.id == Decision.artifact_id)
         .filter(
             Decision.opportunity_id == opportunity_id,
             Decision.status == DecisionStatus.approved,
             Decision.resolved_at.isnot(None),
+            Artifact.type == ArtifactType.proposal_draft,
         )
         .order_by(Decision.resolved_at.desc())
         .first()
     )
-    if not decision:
+    if not result:
         return None
 
-    artifact = (
-        db.query(Artifact)
-        .filter(
-            Artifact.id == decision.artifact_id,
-            Artifact.type == ArtifactType.proposal_draft,
-        )
-        .first()
-    )
-    if not artifact:
-        return None
+    decision, artifact = result
 
     opp = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
     customer_name = ""

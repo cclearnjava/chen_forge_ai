@@ -698,7 +698,10 @@ def download_approved_proposal_pdf(
     if not data:
         raise HTTPException(status_code=404, detail="No approved proposal found for this opportunity")
 
-    pdf_bytes = render_approved_proposal_pdf(data)
+    try:
+        pdf_bytes = render_approved_proposal_pdf(data)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
 
     db.add(AuditLog(
         lead_id=None,

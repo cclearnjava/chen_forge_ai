@@ -1,4 +1,12 @@
-"""Render approved proposal DTO to PDF bytes via Playwright Chromium."""
+"""Render approved proposal DTO to PDF bytes via Playwright Chromium.
+
+Storage adapter saves PDFs locally so they survive process restarts during development.
+"""
+
+import os
+import hashlib
+
+STORAGE_DIR = os.environ.get("PROPOSAL_PDF_STORAGE", "/tmp/chenforge-proposals")
 
 
 def _build_print_html(data: dict) -> str:
@@ -7,7 +15,6 @@ def _build_print_html(data: dict) -> str:
     title = data.get("opportunity_title", "")
     approved_at = data.get("approved_at", "")
 
-    # Simple markdown → HTML (paragraphs and headings only for MVP)
     html_body = ""
     for line in md.split("\n"):
         stripped = line.strip()
@@ -42,38 +49,18 @@ def _build_print_html(data: dict) -> str:
     padding: 60px 0 40px 0;
     page-break-after: always;
   }}
-  .cover h1 {{
-    font-size: 24pt;
-    margin-bottom: 8px;
-    color: #2563eb;
-  }}
-  .cover .subtitle {{
-    font-size: 16pt;
-    color: #4b5563;
-    margin-bottom: 40px;
-  }}
-  .cover .meta {{
-    font-size: 10pt;
-    color: #6b7280;
-    line-height: 2;
-  }}
-  .cover .meta strong {{
-    color: #374151;
-  }}
+  .cover h1 {{ font-size: 24pt; margin-bottom: 8px; color: #2563eb; }}
+  .cover .subtitle {{ font-size: 16pt; color: #4b5563; margin-bottom: 40px; }}
+  .cover .meta {{ font-size: 10pt; color: #6b7280; line-height: 2; }}
+  .cover .meta strong {{ color: #374151; }}
   h1 {{ font-size: 16pt; color: #2563eb; margin-top: 24px; page-break-after: avoid; }}
   h2 {{ font-size: 13pt; color: #374151; margin-top: 18px; page-break-after: avoid; }}
   p {{ margin: 6px 0; }}
   li {{ margin: 3px 0 3px 18px; }}
   .footer {{
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    text-align: center;
-    font-size: 8pt;
-    color: #9ca3af;
-    padding: 8px 0;
-    border-top: 1px solid #e5e7eb;
+    position: fixed; bottom: 0; left: 0; right: 0;
+    text-align: center; font-size: 8pt; color: #9ca3af;
+    padding: 8px 0; border-top: 1px solid #e5e7eb;
   }}
 </style>
 </head>
@@ -93,33 +80,58 @@ def _build_print_html(data: dict) -> str:
 </html>"""
 
 
-def render_approved_proposal_pdf(data: dict) -> bytes:
-    """Render proposal DTO to PDF bytes using Playwright Chromium.
+class ProposalPdfStorage:
+    """Local filesystem storage for generated proposal PDFs."""
 
-    If Playwright is unavailable, returns a placeholder PDF header for testing.
+    def __init__(self, base_dir: str = STORAGE_DIR):
+        self.base_dir = base_dir
+        os.makedirs(self.base_dir, exist_ok=True)
+
+    def _path(self, data: dict) -> str:
+        key = f"{data.get('opportunity_id', 'unknown')}-{data.get('decision_id', 'unknown')}"
+        safe = hashlib.sha256(key.encode()).hexdigest()[:16]
+        return os.path.join(self.base_dir, f"{safe}.pdf")
+
+    def get(self, data: dict) -> bytes | None:
+        path = self._path(data)
+        if os.path.exists(path):
+            with open(path, "rb") as f:
+                return f.read()
+        return None
+
+    def save(self, data: dict, pdf_bytes: bytes) -> str:
+        path = self._path(data)
+        with open(path, "wb") as f:
+            f.write(pdf_bytes)
+        return path
+
+
+_storage = ProposalPdfStorage()
+
+
+def render_approved_proposal_pdf(data: dict) -> bytes:
+    """Render proposal DTO to PDF bytes via Playwright Chromium.
+
+    Caches result to local storage. Raises RuntimeError if Playwright is unavailable.
     """
-    html = _build_print_html(data)
+    cached = _storage.get(data)
+    if cached:
+        return cached
+
     try:
         from playwright.sync_api import sync_playwright
-        with sync_playwright() as p:
-            browser = p.chromium.launch()
-            page = browser.new_page()
-            page.set_content(html, wait_until="networkidle")
-            pdf_bytes = page.pdf(format="A4", print_background=True)
-            browser.close()
-            return pdf_bytes
-    except Exception:
-        # Fallback for environments without Playwright: return minimal PDF
-        return _fake_pdf_bytes()
+    except ImportError:
+        raise RuntimeError(
+            "Playwright is not installed. Run: pip install playwright && python -m playwright install chromium"
+        )
 
+    html = _build_print_html(data)
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(html, wait_until="networkidle")
+        pdf_bytes = page.pdf(format="A4", print_background=True)
+        browser.close()
 
-def _fake_pdf_bytes() -> bytes:
-    """Minimal valid PDF for testing when Playwright is unavailable."""
-    return (
-        b"%PDF-1.4\n"
-        b"1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
-        b"2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
-        b"3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R>>endobj\n"
-        b"xref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n"
-        b"trailer<</Size 4/Root 1 0 R>>\nstartxref\n190\n%%EOF"
-    )
+    _storage.save(data, pdf_bytes)
+    return pdf_bytes
