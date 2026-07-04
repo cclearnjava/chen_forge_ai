@@ -303,6 +303,29 @@ export async function runProposalDraftAgent(
   });
 }
 
+export type ApprovedProposalData = {
+  opportunity_id: string;
+  artifact_id: string;
+  decision_id: string;
+  approved_at: string | null;
+  title: string;
+  markdown: string;
+  customer_name: string;
+  opportunity_title: string;
+};
+
+export async function getApprovedProposal(
+  opportunityId: string,
+): Promise<ApprovedProposalData> {
+  return api(`/admin/opportunities/${opportunityId}/approved-proposal`);
+}
+
+export function getApprovedProposalPdfUrl(opportunityId: string): string {
+  const base = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000/api/v1";
+  const token = process.env.NEXT_PUBLIC_ADMIN_TOKEN || "admin-dev-token";
+  return `${base}/admin/opportunities/${opportunityId}/approved-proposal.pdf?token=${token}`;
+}
+
 export async function markDeliveryJobSent(
   deliveryJobId: string,
   operatorNote?: string,
