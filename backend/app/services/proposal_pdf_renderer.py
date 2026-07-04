@@ -1,12 +1,6 @@
-"""Render approved proposal DTO to PDF bytes via Playwright Chromium.
+"""Render approved proposal DTO to PDF bytes via Playwright Chromium."""
 
-Storage adapter saves PDFs locally so they survive process restarts during development.
-"""
-
-import os
-import hashlib
-
-STORAGE_DIR = os.environ.get("PROPOSAL_PDF_STORAGE", "/tmp/chenforge-proposals")
+from app.services.proposal_pdf_storage import storage
 
 
 def _build_print_html(data: dict) -> str:
@@ -80,41 +74,15 @@ def _build_print_html(data: dict) -> str:
 </html>"""
 
 
-class ProposalPdfStorage:
-    """Local filesystem storage for generated proposal PDFs."""
-
-    def __init__(self, base_dir: str = STORAGE_DIR):
-        self.base_dir = base_dir
-        os.makedirs(self.base_dir, exist_ok=True)
-
-    def _path(self, data: dict) -> str:
-        key = f"{data.get('opportunity_id', 'unknown')}-{data.get('decision_id', 'unknown')}"
-        safe = hashlib.sha256(key.encode()).hexdigest()[:16]
-        return os.path.join(self.base_dir, f"{safe}.pdf")
-
-    def get(self, data: dict) -> bytes | None:
-        path = self._path(data)
-        if os.path.exists(path):
-            with open(path, "rb") as f:
-                return f.read()
-        return None
-
-    def save(self, data: dict, pdf_bytes: bytes) -> str:
-        path = self._path(data)
-        with open(path, "wb") as f:
-            f.write(pdf_bytes)
-        return path
-
-
-_storage = ProposalPdfStorage()
-
-
 def render_approved_proposal_pdf(data: dict) -> bytes:
     """Render proposal DTO to PDF bytes via Playwright Chromium.
 
     Caches result to local storage. Raises RuntimeError if Playwright is unavailable.
     """
-    cached = _storage.get(data)
+    opp_id = data.get("opportunity_id", "unknown")
+    art_id = data.get("artifact_id", "unknown")
+
+    cached = storage.get(opp_id, art_id)
     if cached:
         return cached
 
@@ -133,5 +101,5 @@ def render_approved_proposal_pdf(data: dict) -> bytes:
         pdf_bytes = page.pdf(format="A4", print_background=True)
         browser.close()
 
-    _storage.save(data, pdf_bytes)
+    storage.save(opp_id, art_id, pdf_bytes)
     return pdf_bytes
