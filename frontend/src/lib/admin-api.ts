@@ -320,6 +320,25 @@ export async function getApprovedProposal(
   return api(`/admin/opportunities/${opportunityId}/approved-proposal`);
 }
 
+export async function recordProposalFeedback(
+  opportunityId: string,
+  input: RecordCustomerReplyInput,
+): Promise<{ message: CockpitMessage; opportunity: CockpitOpportunity }> {
+  return api(`/admin/opportunities/${opportunityId}/proposal-feedback`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function runProposalFollowupAgent(
+  opportunityId: string,
+): Promise<ProposalDraftResponse> {
+  return api("/admin/agent-runs/proposal-followup", {
+    method: "POST",
+    body: JSON.stringify({ opportunity_id: opportunityId }),
+  });
+}
+
 export async function createApprovedProposalDeliveryJob(
   opportunityId: string,
 ): Promise<{ delivery_job: CockpitDeliveryJob }> {

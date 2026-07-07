@@ -30,8 +30,11 @@ export default function AgentWorkbench({
   const questions = findArtifact(artifacts, "discovery_questions");
   const review = findArtifact(artifacts, "review");
   const proposal = findArtifact(artifacts, "proposal_draft");
+  const followupReply = findArtifact(artifacts, "proposal_followup_reply_draft");
+  const objection = findArtifact(artifacts, "objection_analysis");
+  const nextStep = findArtifact(artifacts, "next_step_recommendation");
 
-  if (!draft && !review && !proposal) {
+  if (!draft && !review && !proposal && !followupReply && !objection && !nextStep) {
     return (
       <section className="agent-workbench" aria-label="Agent output">
         <div className="empty-state">
@@ -115,6 +118,40 @@ export default function AgentWorkbench({
             {proposal.content_markdown}
           </div>
           <small className="meta">model: {proposal.model} · {new Date(proposal.created_at).toLocaleString()}</small>
+        </article>
+      )}
+
+      {followupReply && (
+        <article className="workbench-card">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">Proposal Follow-up Agent</p>
+              <h2>Proposal Follow-up 回复草稿</h2>
+            </div>
+            <span className="badge">requires approval</span>
+          </div>
+          <div className="markdown-body" style={{ whiteSpace: "pre-wrap" }}>
+            {followupReply.content_markdown}
+          </div>
+          <small className="meta">model: {followupReply.model} · {new Date(followupReply.created_at).toLocaleString()}</small>
+        </article>
+      )}
+
+      {objection && (
+        <article className="workbench-card">
+          <div className="panel-heading"><h2>异议分析</h2></div>
+          <div className="markdown-body" style={{ whiteSpace: "pre-wrap" }}>
+            {objection.content_markdown}
+          </div>
+        </article>
+      )}
+
+      {nextStep && (
+        <article className="workbench-card">
+          <div className="panel-heading"><h2>下一步建议</h2></div>
+          <div className="markdown-body" style={{ whiteSpace: "pre-wrap" }}>
+            {nextStep.content_markdown}
+          </div>
         </article>
       )}
 

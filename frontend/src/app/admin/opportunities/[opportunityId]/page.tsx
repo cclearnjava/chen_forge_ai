@@ -15,6 +15,7 @@ import StageBadge from "@/components/admin/stage-badge";
 import {
   getOpportunityCockpit,
   runProposalDraftAgent,
+  runProposalFollowupAgent,
   runSalesReplyAgent,
   type AdminOpportunityCockpit,
 } from "@/lib/admin-api";
@@ -65,6 +66,18 @@ export default function OpportunityDetailPage() {
       await doFetch(opportunityId);
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : "Workflow failed");
+      setState("error");
+    }
+  };
+
+  const handleRunProposalFollowup = async () => {
+    if (!opportunityId) return;
+    setState("running");
+    try {
+      await runProposalFollowupAgent(opportunityId);
+      await doFetch(opportunityId);
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : "Follow-up failed");
       setState("error");
     }
   };
@@ -133,6 +146,9 @@ export default function OpportunityDetailPage() {
         </button>
         <button className="button primary" type="button" onClick={handleGenerateProposal} disabled={isRunning}>
           {isRunning ? "Running..." : "Generate Proposal Draft"}
+        </button>
+        <button className="button primary" type="button" onClick={handleRunProposalFollowup} disabled={isRunning}>
+          {isRunning ? "Running..." : "Run Proposal Follow-up Agent"}
         </button>
         {isRunning && <span className="running-indicator">Agent 运行中，请稍候...</span>}
         {cockpit.agent_runs.length > 0 && <small className="meta">{cockpit.agent_runs.length} agent run(s) recorded</small>}
