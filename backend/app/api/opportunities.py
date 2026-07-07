@@ -17,6 +17,7 @@ from app.schemas import (
 from app.services.approved_proposal import find_latest_approved_proposal
 from app.services.proposal_draft_workflow import run_proposal_draft_workflow
 from app.services.proposal_followup_workflow import run_proposal_followup_workflow
+from app.services.approved_quote_sow import find_latest_approved_quote_sow
 from app.services.quote_sow_workflow import run_quote_sow_workflow
 from app.services.proposal_pdf_renderer import render_approved_proposal_pdf
 from app.services.proposal_pdf_storage import storage as pdf_storage
@@ -972,3 +973,94 @@ def trigger_quote_sow(
             "recommendation": r["decision"].recommendation,
         },
     }
+
+
+# ── BE-02: Approved Quote/SOW JSON API ──
+
+@router.get("/admin/opportunities/{opportunity_id}/approved-quote-sow")
+def get_approved_quote_sow(
+    opportunity_id: str,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(get_admin_email),
+):
+    data = find_latest_approved_quote_sow(db, opportunity_id)
+    if not data:
+        raise HTTPException(status_code=404, detail="No approved Quote/SOW found for this opportunity")
+    return data
+
+
+# ── BE-03: Quote/SOW DeliveryJob ──
+
+@router.post("/admin/opportunities/{opportunity_id}/approved-quote-sow/delivery-job")
+def create_quote_sow_delivery_job(
+    opportunity_id: str,
+    db: Session = Depends(get_db),
+    admin: str = Depends(get_admin_email),
+):
+    data = find_latest_approved_quote_sow(db, opportunity_id)
+    if not data:
+        raise HTTPException(status_code=404, detail="No approved Quote/SOW found for this opportunity")
+
+    quote_id = data["quote_artifact_id"]
+    existing = (
+        db.query(DeliveryJob)
+        .filter(DeliveryJob.artifact_id == quote_id, DeliveryJob.status == DeliveryStatus.draft)
+        .first()
+    )
+    if existing:
+        return JSONResponse(content={"delivery_job": {
+            "id": existing.id, "lead_id": existing.lead_id,
+            "artifact_id": existing.artifact_id,
+            "channel": _enum_value(existing.channel),
+            "recipient": existing.recipient, "subject": existing.subject,
+            "body_markdown": existing.body_markdown,
+            "status": _enum_value(existing.status),
+            "created_at": _to_iso(existing.created_at),
+            "sent_at": _to_iso(existing.sent_at),
+        }}, status_code=200)
+
+    recipient = "unknown"
+    opp = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
+    if opp and opp.customer_id:
+        cust = db.query(Customer).filter(Customer.id == opp.customer_id).first()
+        if cust:
+            recipient = cust.owner_email
+
+    body_md = f"""请将已审批的 Quote / SOW 确认材料发送给客户。
+
+本发送任务对应：
+- Quote: {data['quote_title']}
+- SOW: {data['sow_title']}
+
+发送后请回到系统点击 Mark sent。"""
+
+    job = DeliveryJob(
+        lead_id=data["lead_id"], artifact_id=quote_id,
+        channel=DeliveryChannel.manual_copy, recipient=recipient,
+        subject=f"Quote / SOW Confirmation: {opp.title if opp else ''}",
+        body_markdown=body_md, status=DeliveryStatus.draft,
+    )
+    db.add(job)
+    db.flush()
+
+    db.add(AuditLog(
+        lead_id=data["lead_id"], actor=admin,
+        action="quote_sow_delivery_job_created",
+        details_json={
+            "opportunity_id": opportunity_id,
+            "quote_artifact_id": quote_id,
+            "sow_artifact_id": data["sow_artifact_id"],
+            "delivery_job_id": job.id,
+            "reused_existing": False,
+        },
+    ))
+
+    db.commit()
+    return JSONResponse(content={"delivery_job": {
+        "id": job.id, "lead_id": job.lead_id, "artifact_id": job.artifact_id,
+        "channel": _enum_value(job.channel),
+        "recipient": job.recipient, "subject": job.subject,
+        "body_markdown": job.body_markdown,
+        "status": _enum_value(job.status),
+        "created_at": _to_iso(job.created_at), "sent_at": _to_iso(job.sent_at),
+    }}, status_code=201)

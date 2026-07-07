@@ -4,7 +4,7 @@ from app.db import get_db
 from app.auth.middleware import get_admin_email
 from app.models import (
     Artifact, ArtifactType, AuditLog, DeliveryChannel, DeliveryJob,
-    DeliveryStatus, Message, MessageSenderType, Opportunity,
+    DeliveryStatus, Message, MessageSenderType, Opportunity, OpportunityStage,
 )
 from app.schemas import DeliveryJobCreate, DeliveryJobMarkSentIn, DeliveryJobMarkSentOut
 from app.config import settings
@@ -150,6 +150,30 @@ def mark_delivery_job_sent(
                 "opportunity_id": artifact.opportunity_id,
                 "recipient": job.recipient,
                 "operator_note": req.operator_note,
+            },
+        ))
+
+    # BE-04: Quote/SOW delivery — write Message, AuditLog, advance to contracting
+    if artifact and artifact.type == ArtifactType.quote_draft:
+        if artifact.opportunity_id:
+            opp = db.query(Opportunity).filter(Opportunity.id == artifact.opportunity_id).first()
+            if opp:
+                opp.stage = OpportunityStage.contracting
+                opp.next_step = "Wait for customer confirmation or prepare contract draft"
+                if opp.conversation_id:
+                    db.add(Message(
+                        conversation_id=opp.conversation_id, customer_id=opp.customer_id,
+                        contact_id=opp.primary_contact_id, sender_type=MessageSenderType.owner,
+                        sender_label=admin,
+                        body_markdown=f"已发送 Quote / SOW 确认材料：{job.subject}",
+                        source="delivery",
+                    ))
+        db.add(AuditLog(
+            lead_id=job.lead_id, actor=admin, action="quote_sow_sent",
+            details_json={
+                "delivery_job_id": job.id, "quote_artifact_id": job.artifact_id,
+                "opportunity_id": artifact.opportunity_id,
+                "recipient": job.recipient, "operator_note": req.operator_note,
             },
         ))
 

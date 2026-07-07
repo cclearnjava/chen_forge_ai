@@ -121,6 +121,7 @@ class OpportunityStage(str, enum.Enum):
     won = "won"
     lost = "lost"
     archived = "archived"
+    contracting = "contracting"
 
 
 class Lead(Base):
