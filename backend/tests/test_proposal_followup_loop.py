@@ -121,6 +121,46 @@ class TestProposalFollowup:
         after = db.query(DeliveryJob).count()
         assert after == before + 1
 
+    def test_run_followup_without_sent_proposal_returns_422(self, client: TestClient):
+        """BE-03: if approved proposal exists but hasn't been sent, return 422."""
+        init_db()
+        opp_id = _setup_with_sent_proposal(client)
+        # Create a new opportunity with approved but UNSENT proposal
+        email = "unsent-test@example.com"
+        db = SessionLocal()
+        from app.auth.verification import create_verification_code
+        code = create_verification_code(db, email)
+        db.close()
+        r = client.post("/api/v1/auth/email/verify", json={"email": email, "code": code})
+        token = r.json()["access_token"]
+        h = {"Authorization": f"Bearer {token}"}
+        r = client.post("/api/v1/leads", json={
+            "owner_email": email, "company": "未发送测试", "contact_name": "测试",
+            "contact_method": "email", "industry": "科技",
+            "problem": "未发送 Proposal 的 422 测试需要一段足够长的文本描述",
+            "desired_outcome": "测试", "company_size": "10-50",
+            "budget_range": "1-3w", "timeline": "1个月",
+            "honeypot": "", "submitted_after_ms": 2000,
+        }, headers=h)
+        opp2 = r.json()["lifecycle"]["opportunity"]["id"]
+        client.post("/api/v1/admin/agent-runs/proposal-draft", json={"opportunity_id": opp2}, headers=ADMIN)
+        r3 = client.get(f"/api/v1/admin/opportunities/{opp2}", headers=ADMIN)
+        decs = r3.json()["opportunity"]["decisions"]
+        w = [d for d in decs if d["status"] == "waiting"]
+        client.post(f"/api/v1/decisions/{w[0]['id']}/approve", json={}, headers=ADMIN)
+        # Approved but NOT sent — feedback should fail
+        r4 = client.post(f"/api/v1/admin/opportunities/{opp2}/proposal-feedback",
+                         json={"body_markdown": "test"}, headers=ADMIN)
+        assert r4.status_code == 422
+
+    def test_record_feedback_without_approved_proposal_returns_422(self, client: TestClient):
+        """No approved proposal at all — should return 422."""
+        init_db()
+        # Use nonexistent ID which will hit 404 first
+        r = client.post("/api/v1/admin/opportunities/nonexistent-id/proposal-feedback",
+                        json={"body_markdown": "test"}, headers=ADMIN)
+        assert r.status_code == 404
+
     def test_existing_tests_still_pass(self, client: TestClient):
         """Verify ArtifactType enum still works for existing types."""
         init_db()

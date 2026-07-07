@@ -835,16 +835,14 @@ def record_proposal_feedback(
     if not opp.conversation_id:
         raise HTTPException(status_code=422, detail="Opportunity has no linked conversation")
 
-    # Check sent Proposal DeliveryJob exists
+    # Check latest approved proposal is sent
+    proposal_data = find_latest_approved_proposal(db, opportunity_id)
+    if not proposal_data:
+        raise HTTPException(status_code=422, detail="No approved proposal found")
     sent_job = (
         db.query(DeliveryJob)
         .filter(
-            DeliveryJob.artifact_id.in_(
-                db.query(Artifact.id).filter(
-                    Artifact.opportunity_id == opportunity_id,
-                    Artifact.type == ArtifactType.proposal_draft,
-                )
-            ),
+            DeliveryJob.artifact_id == proposal_data["artifact_id"],
             DeliveryJob.status == DeliveryStatus.sent,
         )
         .first()
