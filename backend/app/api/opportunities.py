@@ -965,6 +965,10 @@ def trigger_quote_sow(
              "created_at": _to_iso(a.created_at)}
             for a in r["artifacts"]
         ],
-        "decision": {"id": r["decision"].id, "question": r["decision"].question,
-                     "status": _enum_value(r["decision"].status)},
+        "decision": {
+            "id": r["decision"].id, "question": r["decision"].question,
+            "status": _enum_value(r["decision"].status),
+            "artifact_id": r["decision"].artifact_id,
+            "recommendation": r["decision"].recommendation,
+        },
     }
