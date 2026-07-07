@@ -61,6 +61,9 @@ class ArtifactType(str, enum.Enum):
     proposal_draft = "proposal_draft"
     delivery_roadmap = "delivery_roadmap"
     sent_message = "sent_message"
+    proposal_followup_reply_draft = "proposal_followup_reply_draft"
+    objection_analysis = "objection_analysis"
+    next_step_recommendation = "next_step_recommendation"
 
 
 class DeliveryChannel(str, enum.Enum):

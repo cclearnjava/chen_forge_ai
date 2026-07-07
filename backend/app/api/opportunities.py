@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from starlette.responses import JSONResponse, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, joinedload
 from app.db import get_db
 from app.auth.middleware import get_admin_email
 from app.models import (
-    AgentRun, Artifact, AuditLog, Contact, Conversation, Customer, Decision,
-    DeliveryChannel, DeliveryJob, DeliveryStatus, Message, MessageSenderType,
-    Opportunity, OpportunityStage,
+    AgentRun, Artifact, ArtifactType, AuditLog, Contact, Conversation, Customer,
+    Decision, DeliveryChannel, DeliveryJob, DeliveryStatus, Message,
+    MessageSenderType, Opportunity, OpportunityStage,
 )
 from app.schemas import (
     AdminOpportunityCockpitOut, OpportunityMessageCreateIn,
@@ -16,6 +16,7 @@ from app.schemas import (
 )
 from app.services.approved_proposal import find_latest_approved_proposal
 from app.services.proposal_draft_workflow import run_proposal_draft_workflow
+from app.services.proposal_followup_workflow import run_proposal_followup_workflow
 from app.services.proposal_pdf_renderer import render_approved_proposal_pdf
 from app.services.proposal_pdf_storage import storage as pdf_storage
 from app.services.sales_reply_workflow import run_sales_reply_workflow
@@ -812,3 +813,124 @@ def create_proposal_delivery_job(
         "status": _enum_value(job.status),
         "created_at": _to_iso(job.created_at), "sent_at": _to_iso(job.sent_at),
     }}, status_code=201)
+
+
+# ── BE-02: Record Proposal Feedback ──
+
+class ProposalFeedbackRequest(BaseModel):
+    body_markdown: str = Field(..., min_length=1)
+    sender_label: str | None = None
+
+
+@router.post("/admin/opportunities/{opportunity_id}/proposal-feedback", status_code=201)
+def record_proposal_feedback(
+    opportunity_id: str,
+    req: ProposalFeedbackRequest,
+    db: Session = Depends(get_db),
+    admin: str = Depends(get_admin_email),
+):
+    opp = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
+    if not opp:
+        raise HTTPException(status_code=404, detail="Opportunity not found")
+    if not opp.conversation_id:
+        raise HTTPException(status_code=422, detail="Opportunity has no linked conversation")
+
+    # Check sent Proposal DeliveryJob exists
+    sent_job = (
+        db.query(DeliveryJob)
+        .filter(
+            DeliveryJob.artifact_id.in_(
+                db.query(Artifact.id).filter(
+                    Artifact.opportunity_id == opportunity_id,
+                    Artifact.type == ArtifactType.proposal_draft,
+                )
+            ),
+            DeliveryJob.status == DeliveryStatus.sent,
+        )
+        .first()
+    )
+    if not sent_job:
+        raise HTTPException(status_code=422, detail="Approved proposal has not been sent yet")
+
+    message = Message(
+        conversation_id=opp.conversation_id, customer_id=opp.customer_id,
+        contact_id=opp.primary_contact_id, sender_type=MessageSenderType.customer,
+        sender_label=req.sender_label or "客户 Proposal 反馈",
+        body_markdown=req.body_markdown, source="proposal_feedback",
+    )
+    db.add(message)
+    db.flush()
+
+    opp.next_step = "Review proposal feedback"
+
+    db.add(AuditLog(
+        lead_id=opp.lead_id, actor=admin, action="proposal_feedback_recorded",
+        details_json={
+            "opportunity_id": opp.id, "conversation_id": opp.conversation_id,
+            "message_id": message.id, "source": "proposal_feedback",
+        },
+    ))
+
+    db.commit()
+    return {
+        "message": {
+            "id": message.id, "conversation_id": message.conversation_id,
+            "sender_type": _enum_value(message.sender_type),
+            "sender_label": message.sender_label,
+            "body_markdown": message.body_markdown,
+            "source": message.source, "created_at": _to_iso(message.created_at),
+        },
+        "opportunity": {"id": opp.id, "next_step": opp.next_step},
+    }
+
+
+# ── BE-07: Proposal Follow-up Agent ──
+
+class ProposalFollowupRequest(BaseModel):
+    opportunity_id: str
+
+
+@router.post("/admin/agent-runs/proposal-followup")
+def trigger_proposal_followup(
+    req: ProposalFollowupRequest,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(get_admin_email),
+):
+    opp = db.query(Opportunity).filter(Opportunity.id == req.opportunity_id).first()
+    if not opp:
+        raise HTTPException(status_code=404, detail="Opportunity not found")
+
+    try:
+        result = run_proposal_followup_workflow(db, req.opportunity_id)
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Follow-up workflow failed")
+
+    r = result
+    return {
+        "agent_run": {
+            "id": r["agent_run"].id, "agent_profile_id": r["agent_run"].agent_profile_id,
+            "status": _enum_value(r["agent_run"].status),
+            "started_at": _to_iso(r["agent_run"].started_at),
+            "completed_at": _to_iso(r["agent_run"].completed_at),
+        },
+        "artifacts": [
+            {
+                "id": a.id, "agent_run_id": a.agent_run_id,
+                "type": _enum_value(a.type), "title": a.title,
+                "content_markdown": a.content_markdown, "content_json": a.content_json,
+                "model": a.model, "requires_approval": a.requires_approval,
+                "created_at": _to_iso(a.created_at),
+            }
+            for a in r["artifacts"]
+        ],
+        "decision": {
+            "id": r["decision"].id, "question": r["decision"].question,
+            "recommendation": r["decision"].recommendation,
+            "status": _enum_value(r["decision"].status),
+        },
+    }

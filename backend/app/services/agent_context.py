@@ -75,3 +75,48 @@ def build_opportunity_proposal_context(db: Session, opportunity_id: str) -> dict
     ctx["discovery_questions"] = discovery_questions
     ctx["review"] = review
     return ctx
+
+
+def build_proposal_followup_context(db: Session, opportunity_id: str) -> dict:
+    """Build context for Proposal Follow-up Agent. Requires sent proposal and feedback."""
+    from app.models import DeliveryJob, DeliveryStatus
+
+    ctx = build_opportunity_proposal_context(db, opportunity_id)
+    opp = ctx["opportunity"]
+
+    # Latest approved proposal
+    approved = ctx.get("customer_reply_draft")  # reuse proposal context — actually need approved proposal
+    from app.services.approved_proposal import find_latest_approved_proposal
+    proposal_data = find_latest_approved_proposal(db, opportunity_id)
+    if not proposal_data:
+        raise ValueError("No approved proposal found")
+
+    # Check sent
+    sent_job = (
+        db.query(DeliveryJob)
+        .filter(
+            DeliveryJob.artifact_id == proposal_data["artifact_id"],
+            DeliveryJob.status == DeliveryStatus.sent,
+        )
+        .first()
+    )
+    if not sent_job:
+        raise ValueError("Approved proposal has not been sent yet")
+
+    # Latest proposal feedback
+    feedback = (
+        db.query(Message)
+        .filter(
+            Message.conversation_id == opp.conversation_id,
+            Message.source == "proposal_feedback",
+        )
+        .order_by(Message.created_at.desc())
+        .first()
+    )
+    if not feedback:
+        raise ValueError("No proposal feedback recorded")
+
+    ctx["approved_proposal"] = proposal_data
+    ctx["proposal_sent_job"] = sent_job
+    ctx["latest_proposal_feedback"] = feedback
+    return ctx

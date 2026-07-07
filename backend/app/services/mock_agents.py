@@ -186,3 +186,128 @@ def generate_proposal_draft(context: dict) -> dict:
         "content_markdown": content_markdown,
         "content_json": content_json,
     }
+
+
+def generate_proposal_followup_reply(context: dict) -> dict:
+    """Generate a follow-up reply draft responding to client proposal feedback."""
+    fb = context.get("latest_proposal_feedback")
+    proposal = context.get("approved_proposal", {})
+    customer = context.get("customer")
+    company = customer.name if customer else "贵公司"
+
+    feedback_text = fb.body_markdown if fb else "客户反馈"
+    title = proposal.get("opportunity_title", "PoC 方案")
+
+    content_markdown = f"""# Proposal Follow-up 回复草稿
+
+## 1. 对客户反馈的确认
+
+感谢 {company} 对「{title}」的反馈。我们已认真阅读并就您关心的要点进行了分析。
+
+## 2. 针对异议的回应
+
+针对您的反馈（{feedback_text[:80]}...），我们理解您的核心顾虑。建议在接下来的一轮沟通中聚焦可调整的范围和交付节奏，以同时回应您的关注点与项目可行性。
+
+## 3. 可调整的 PoC 范围
+
+- 可以根据您的反馈适当缩小第一期 PoC 的交付范围，优先验证核心价值。
+- 具体调整需要双方在会议上确认，以验收标准为准。
+
+## 4. 需要客户确认的问题
+
+- 您在反馈中最关心的优先事项是哪一项？（预算控制 / 交付速度 / 功能广度）
+- 是否可以在近期安排一次 30 分钟的对齐会议？
+- 是否有其他决策人需要参与后续讨论？
+
+## 5. 下一步建议
+
+建议本周内安排一次需求对齐会议，聚焦 PoC 范围调整和下一步时间线。"""
+
+    content_json = {
+        "acknowledgement": f"已收到 {company} 对 {title} 的反馈",
+        "objection_response": "将在对齐会议中讨论范围调整",
+        "scope_adjustment": ["优先验证核心价值", "缩小第一期交付范围"],
+        "questions_for_customer": ["最关心的优先事项", "是否可安排对齐会议", "是否有其他决策人"],
+        "next_step": "本周安排需求对齐会议",
+    }
+    return {"content_markdown": content_markdown, "content_json": content_json}
+
+
+def generate_objection_analysis(context: dict) -> dict:
+    """Analyze client objections to the proposal."""
+    fb = context.get("latest_proposal_feedback")
+    proposal = context.get("approved_proposal", {})
+    feedback_text = fb.body_markdown if fb else "客户反馈"
+    risk_level = "medium"
+    if "预算" in feedback_text or "价格" in feedback_text:
+        risk_level = "medium"
+    if "不接受" in feedback_text or "不做了" in feedback_text:
+        risk_level = "high"
+
+    content_markdown = f"""# 异议分析
+
+## 1. 客户核心顾虑
+
+基于客户反馈，主要顾虑集中在：{feedback_text[:100]}
+
+## 2. 风险等级
+
+**{risk_level}** — {"需要重点关注并及时回应" if risk_level != "low" else "属于正常商务沟通范围"}
+
+## 3. 可让步空间
+
+- PoC 范围可根据客户反馈适当调整，缩小第一期交付物但保留核心验证能力。
+- 时间计划建议保持弹性，以双方确认的验收标准为准。
+
+## 4. 不应承诺的内容
+
+- 不应承诺免费交付或大幅降价。
+- 不应承诺跳过 PoC 直接进入生产部署。
+- 不应承诺不经验收标准确认的上线日期。
+
+## 5. 建议沟通策略
+
+以"理解顾虑 + 提供调整方案 + 邀请对齐会议"为主线推进。"""
+
+    content_json = {
+        "core_concern": feedback_text[:100],
+        "risk_level": risk_level,
+        "concession_space": ["缩小范围", "弹性时间"],
+        "no_commitments": ["免费交付", "跳过PoC", "确定上线日期"],
+        "strategy": "理解顾虑 + 调整方案 + 对齐会议",
+    }
+    return {"content_markdown": content_markdown, "content_json": content_json}
+
+
+def generate_next_step_recommendation(context: dict) -> dict:
+    """Generate next-step recommendations after proposal follow-up."""
+    content_markdown = """# 下一步建议
+
+## 建议动作
+
+- 审批本回复草稿后，将内容发送给客户。
+- 同时准备一份调整后的 PoC 范围说明，供对齐会议使用。
+
+## 建议会议/沟通安排
+
+- 本周内安排一次 30 分钟的视频或电话会议。
+- 会议议程：确认调整后的 PoC 范围、时间线和验收标准。
+
+## 需要准备的材料
+
+- 当前已批准 Proposal PDF。
+- 调整后的 PoC 范围草案（可基于本次反馈更新 Proposal）。
+
+## Opportunity 更新建议
+
+- 将 Opportunity 移至 negotiation 阶段。
+- 更新 next_step 为 "Send follow-up reply and schedule alignment meeting"。
+"""
+
+    content_json = {
+        "actions": ["审批并发送回复", "准备调整后范围说明"],
+        "meeting": "本周 30 分钟对齐会议",
+        "materials": ["Proposal PDF", "调整后范围草案"],
+        "opportunity_update": {"stage": "negotiation", "next_step": "Send follow-up and schedule meeting"},
+    }
+    return {"content_markdown": content_markdown, "content_json": content_json}

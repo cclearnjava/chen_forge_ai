@@ -136,7 +136,7 @@ def approve_decision(
     if not opp:
         raise HTTPException(status_code=422, detail="Decision has no linked opportunity")
 
-    if artifact.type == ArtifactType.customer_reply_draft:
+    if artifact.type in (ArtifactType.customer_reply_draft, ArtifactType.proposal_followup_reply_draft):
         _approve_customer_reply_decision(d, artifact, opp, db, admin, req)
     elif artifact.type == ArtifactType.proposal_draft:
         _approve_proposal_decision(d, artifact, opp, db, admin, req)
