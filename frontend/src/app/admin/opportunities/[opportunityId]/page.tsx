@@ -141,7 +141,7 @@ export default function OpportunityDetailPage() {
       <div className="opportunity-detail-grid">
         <div className="detail-main">
           <AgentWorkbench artifacts={cockpit.artifacts} agentRuns={cockpit.agent_runs} />
-          <ApprovedProposalPanel opportunityId={opportunityId} />
+          <ApprovedProposalPanel opportunityId={opportunityId} onDeliveryJobCreated={() => { setRetryKey((k) => k + 1); }} />
           <ConversationThread messages={messages} />
           <CustomerReplyComposer
             opportunityId={opportunityId}

@@ -320,6 +320,14 @@ export async function getApprovedProposal(
   return api(`/admin/opportunities/${opportunityId}/approved-proposal`);
 }
 
+export async function createApprovedProposalDeliveryJob(
+  opportunityId: string,
+): Promise<{ delivery_job: CockpitDeliveryJob }> {
+  return api(`/admin/opportunities/${opportunityId}/approved-proposal/delivery-job`, {
+    method: "POST",
+  });
+}
+
 export async function downloadApprovedProposalPdf(opportunityId: string): Promise<Blob> {
   const base = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000/api/v1";
   const token = process.env.NEXT_PUBLIC_ADMIN_TOKEN || "admin-dev-token";

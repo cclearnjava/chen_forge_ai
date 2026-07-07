@@ -1,12 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { downloadApprovedProposalPdf, getApprovedProposal, type ApprovedProposalData } from "@/lib/admin-api";
+import { createApprovedProposalDeliveryJob, downloadApprovedProposalPdf, getApprovedProposal, type ApprovedProposalData } from "@/lib/admin-api";
 
-export default function ApprovedProposalPanel({ opportunityId }: { opportunityId: string }) {
+export default function ApprovedProposalPanel({
+  opportunityId,
+  onDeliveryJobCreated,
+}: {
+  opportunityId: string;
+  onDeliveryJobCreated?: () => void;
+}) {
   const [state, setState] = useState<"loading" | "empty" | "ready" | "error">("loading");
   const [data, setData] = useState<ApprovedProposalData | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [preparing, setPreparing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -26,6 +33,22 @@ export default function ApprovedProposalPanel({ opportunityId }: { opportunityId
     });
     return () => { cancelled = true; };
   }, [opportunityId]);
+
+  const handlePrepareSend = async () => {
+    setPreparing(true);
+    setError(null);
+    try {
+      await createApprovedProposalDeliveryJob(opportunityId);
+      onDeliveryJobCreated?.();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("404")) setError("需要先批准 Proposal 后才能创建发送任务");
+      else if (msg.includes("503")) setError("PDF 生成不可用，请确认 Playwright 环境已就绪");
+      else setError(msg || "创建发送任务失败");
+    } finally {
+      setPreparing(false);
+    }
+  };
 
   const handleDownload = async () => {
     setDownloading(true);
@@ -84,14 +107,14 @@ export default function ApprovedProposalPanel({ opportunityId }: { opportunityId
               {data.markdown.slice(0, 500)}{data.markdown.length > 500 ? "..." : ""}
             </div>
           </details>
-          <button
-            className="button primary"
-            type="button"
-            disabled={downloading}
-            onClick={handleDownload}
-          >
-            {downloading ? "Downloading..." : "Download PDF"}
-          </button>
+          <div className="approved-proposal-actions">
+            <button className="button primary" type="button" disabled={downloading} onClick={handleDownload}>
+              {downloading ? "Downloading..." : "Download PDF"}
+            </button>
+            <button className="button primary" type="button" disabled={preparing} onClick={handlePrepareSend}>
+              {preparing ? "Preparing..." : "Prepare Send"}
+            </button>
+          </div>
         </div>
       )}
     </section>
