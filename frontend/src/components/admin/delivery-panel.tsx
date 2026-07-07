@@ -53,6 +53,7 @@ export default function DeliveryPanel({
       {jobs.map((j) => (
         <div className={`delivery-item ${j.status}`} key={j.id}>
           <strong>{j.subject}</strong>
+          {j.subject?.includes("PoC Proposal") && <span className="badge proposal">Proposal PDF</span>}
           <dl>
             <div><dt>Recipient</dt><dd>{j.recipient}</dd></div>
             <div><dt>Channel</dt><dd>{j.channel}</dd></div>
