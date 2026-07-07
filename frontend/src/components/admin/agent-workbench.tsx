@@ -33,8 +33,11 @@ export default function AgentWorkbench({
   const followupReply = findArtifact(artifacts, "proposal_followup_reply_draft");
   const objection = findArtifact(artifacts, "objection_analysis");
   const nextStep = findArtifact(artifacts, "next_step_recommendation");
+  const quote = findArtifact(artifacts, "quote_draft");
+  const sow = findArtifact(artifacts, "sow_draft");
+  const commReview = findArtifact(artifacts, "commercial_review");
 
-  if (!draft && !review && !proposal && !followupReply && !objection && !nextStep) {
+  if (!draft && !review && !proposal && !followupReply && !objection && !nextStep && !quote && !sow && !commReview) {
     return (
       <section className="agent-workbench" aria-label="Agent output">
         <div className="empty-state">
@@ -152,6 +155,31 @@ export default function AgentWorkbench({
           <div className="markdown-body" style={{ whiteSpace: "pre-wrap" }}>
             {nextStep.content_markdown}
           </div>
+        </article>
+      )}
+
+      {quote && (
+        <article className="workbench-card">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">Quote / SOW Agent</p>
+              <h2>Quote Draft</h2>
+            </div>
+            <span className="badge">requires approval</span>
+          </div>
+          <div className="markdown-body" style={{ whiteSpace: "pre-wrap" }}>{quote.content_markdown}</div>
+        </article>
+      )}
+      {sow && (
+        <article className="workbench-card">
+          <div className="panel-heading"><h2>SOW Draft</h2><span className="badge">requires approval</span></div>
+          <div className="markdown-body" style={{ whiteSpace: "pre-wrap" }}>{sow.content_markdown}</div>
+        </article>
+      )}
+      {commReview && (
+        <article className="workbench-card">
+          <div className="panel-heading"><h2>Commercial Review</h2></div>
+          <div className="markdown-body" style={{ whiteSpace: "pre-wrap" }}>{commReview.content_markdown}</div>
         </article>
       )}
 

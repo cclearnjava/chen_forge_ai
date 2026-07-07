@@ -17,6 +17,7 @@ import {
   getOpportunityCockpit,
   runProposalDraftAgent,
   runProposalFollowupAgent,
+  runQuoteSowAgent,
   runSalesReplyAgent,
   type AdminOpportunityCockpit,
 } from "@/lib/admin-api";
@@ -79,6 +80,18 @@ export default function OpportunityDetailPage() {
       await doFetch(opportunityId);
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : "Follow-up failed");
+      setState("error");
+    }
+  };
+
+  const handleRunQuoteSow = async () => {
+    if (!opportunityId) return;
+    setState("running");
+    try {
+      await runQuoteSowAgent(opportunityId);
+      await doFetch(opportunityId);
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : "Quote/SOW failed");
       setState("error");
     }
   };
@@ -150,6 +163,9 @@ export default function OpportunityDetailPage() {
         </button>
         <button className="button primary" type="button" onClick={handleRunProposalFollowup} disabled={isRunning}>
           {isRunning ? "Running..." : "Run Proposal Follow-up Agent"}
+        </button>
+        <button className="button primary" type="button" onClick={handleRunQuoteSow} disabled={isRunning}>
+          {isRunning ? "Running..." : "Generate Quote / SOW Draft"}
         </button>
         {isRunning && <span className="running-indicator">Agent 运行中，请稍候...</span>}
         {cockpit.agent_runs.length > 0 && <small className="meta">{cockpit.agent_runs.length} agent run(s) recorded</small>}

@@ -339,6 +339,15 @@ export async function runProposalFollowupAgent(
   });
 }
 
+export async function runQuoteSowAgent(
+  opportunityId: string,
+): Promise<ProposalDraftResponse> {
+  return api("/admin/agent-runs/quote-sow", {
+    method: "POST",
+    body: JSON.stringify({ opportunity_id: opportunityId }),
+  });
+}
+
 export async function createApprovedProposalDeliveryJob(
   opportunityId: string,
 ): Promise<{ delivery_job: CockpitDeliveryJob }> {
