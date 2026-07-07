@@ -149,11 +149,27 @@ class TestQuoteSowWorkflow:
         assert len(logs) >= 1
 
     def test_missing_approved_proposal_returns_422(self, client: TestClient):
-        """No approved proposal at all — context raises ValueError → 422."""
+        """Opportunity exists but has no approved proposal — context → 422."""
         init_db()
-        r = client.post("/api/v1/admin/agent-runs/quote-sow",
-                        json={"opportunity_id": "nonexistent-id"}, headers=ADMIN)
-        assert r.status_code in (404, 422)
+        email = "no-proposal@example.com"
+        db = SessionLocal()
+        from app.auth.verification import create_verification_code
+        code = create_verification_code(db, email)
+        db.close()
+        r = client.post("/api/v1/auth/email/verify", json={"email": email, "code": code})
+        h = {"Authorization": f"Bearer {r.json()['access_token']}"}
+        r2 = client.post("/api/v1/leads", json={
+            "owner_email": email, "company": "无Proposal测试", "contact_name": "测试",
+            "contact_method": "email", "industry": "科技",
+            "problem": "无Proposal的422测试需要足够长的业务描述文本",
+            "desired_outcome": "测试", "company_size": "10-50", "budget_range": "1-3w",
+            "timeline": "1个月", "honeypot": "", "submitted_after_ms": 2000,
+        }, headers=h)
+        opp_id = r2.json()["lifecycle"]["opportunity"]["id"]
+        # Opp exists but no proposal draft was ever created — should return 422
+        r3 = client.post("/api/v1/admin/agent-runs/quote-sow",
+                         json={"opportunity_id": opp_id}, headers=ADMIN)
+        assert r3.status_code == 422
 
     def test_unsent_proposal_returns_422(self, client: TestClient):
         """Approved but unsent — context should return 422."""
