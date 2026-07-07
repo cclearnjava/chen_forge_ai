@@ -53,5 +53,8 @@ Thumbs.db
 .wow-harness/progress/
 .wow-harness/proposals/
 
+# local proposal pdf exports
+backend/storage/proposals/
+
 # local browser/test traces
 .playwright-mcp/
