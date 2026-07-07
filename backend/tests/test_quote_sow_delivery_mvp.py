@@ -151,3 +151,24 @@ class TestQuoteSowDeliveryMvp:
                     json={}, headers=ADMIN)
         after = db.query(Message).count()
         assert after == before
+
+
+def test_missing_sibling_sow_returns_422(client: TestClient):
+    """Approved quote exists but sibling sow_draft from same AgentRun is missing → 422."""
+    init_db()
+    opp_id = _setup_approved_quote_sow(client)
+    db = SessionLocal()
+    from app.models import Artifact, ArtifactType
+    sows = db.query(Artifact).filter(
+        Artifact.opportunity_id == opp_id,
+        Artifact.type == ArtifactType.sow_draft,
+    ).all()
+    for s in sows:
+        db.delete(s)
+    db.commit()
+    db.close()
+    r = client.get(f"/api/v1/admin/opportunities/{opp_id}/approved-quote-sow", headers=ADMIN)
+    assert r.status_code == 422
+    r2 = client.post(f"/api/v1/admin/opportunities/{opp_id}/approved-quote-sow/delivery-job",
+                     json={}, headers=ADMIN)
+    assert r2.status_code == 422
