@@ -983,7 +983,10 @@ def get_approved_quote_sow(
     db: Session = Depends(get_db),
     _admin: str = Depends(get_admin_email),
 ):
-    data = find_latest_approved_quote_sow(db, opportunity_id)
+    try:
+        data = find_latest_approved_quote_sow(db, opportunity_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     if not data:
         raise HTTPException(status_code=404, detail="No approved Quote/SOW found for this opportunity")
     return data
@@ -997,7 +1000,10 @@ def create_quote_sow_delivery_job(
     db: Session = Depends(get_db),
     admin: str = Depends(get_admin_email),
 ):
-    data = find_latest_approved_quote_sow(db, opportunity_id)
+    try:
+        data = find_latest_approved_quote_sow(db, opportunity_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     if not data:
         raise HTTPException(status_code=404, detail="No approved Quote/SOW found for this opportunity")
 

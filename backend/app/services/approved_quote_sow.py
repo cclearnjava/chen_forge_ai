@@ -32,7 +32,7 @@ def find_latest_approved_quote_sow(db: Session, opportunity_id: str) -> dict | N
         .first()
     )
     if not sow:
-        return None
+        raise ValueError("Approved quote has no matching SOW draft")
 
     return {
         "quote_artifact_id": quote.id,

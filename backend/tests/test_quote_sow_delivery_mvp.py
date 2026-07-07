@@ -117,3 +117,37 @@ class TestQuoteSowDeliveryMvp:
         db = SessionLocal()
         opp = db.query(Opportunity).filter(Opportunity.id == opp_id).one()
         assert opp.stage.value == "contracting"
+
+    def test_create_delivery_job_without_approved_returns_404(self, client: TestClient):
+        """Real opportunity exists but no approved Quote/SOW — should return 404."""
+        init_db()
+        email = "noqs@example.com"
+        db = SessionLocal()
+        from app.auth.verification import create_verification_code
+        code = create_verification_code(db, email)
+        db.close()
+        r = client.post("/api/v1/auth/email/verify", json={"email": email, "code": code})
+        h = {"Authorization": f"Bearer {r.json()['access_token']}"}
+        r2 = client.post("/api/v1/leads", json={
+            "owner_email": email, "company": "无QS测试", "contact_name": "测试",
+            "contact_method": "email", "industry": "科技",
+            "problem": "无QuoteSOW的404测试需要足够长的业务描述",
+            "desired_outcome": "测试", "company_size": "10-50", "budget_range": "1-3w",
+            "timeline": "1个月", "honeypot": "", "submitted_after_ms": 2000,
+        }, headers=h)
+        opp_id = r2.json()["lifecycle"]["opportunity"]["id"]
+        # Opp exists but no quote/sow — should return 404
+        r3 = client.post(f"/api/v1/admin/opportunities/{opp_id}/approved-quote-sow/delivery-job",
+                         json={}, headers=ADMIN)
+        assert r3.status_code == 404
+
+    def test_create_draft_does_not_write_message(self, client: TestClient):
+        """Creating draft DeliveryJob should NOT write Conversation Message."""
+        init_db()
+        opp_id = _setup_approved_quote_sow(client)
+        db = SessionLocal()
+        before = db.query(Message).count()
+        client.post(f"/api/v1/admin/opportunities/{opp_id}/approved-quote-sow/delivery-job",
+                    json={}, headers=ADMIN)
+        after = db.query(Message).count()
+        assert after == before
