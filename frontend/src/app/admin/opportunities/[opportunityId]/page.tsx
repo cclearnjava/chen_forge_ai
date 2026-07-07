@@ -11,6 +11,7 @@ import AuditTrail from "@/components/admin/audit-trail";
 import ConversationThread from "@/components/admin/conversation-thread";
 import CustomerReplyComposer from "@/components/admin/customer-reply-composer";
 import DeliveryPanel from "@/components/admin/delivery-panel";
+import ProposalFeedbackComposer from "@/components/admin/proposal-feedback-composer";
 import StageBadge from "@/components/admin/stage-badge";
 import {
   getOpportunityCockpit,
@@ -159,6 +160,10 @@ export default function OpportunityDetailPage() {
           <AgentWorkbench artifacts={cockpit.artifacts} agentRuns={cockpit.agent_runs} />
           <ApprovedProposalPanel opportunityId={opportunityId} onDeliveryJobCreated={() => { setRetryKey((k) => k + 1); }} />
           <ConversationThread messages={messages} />
+          <ProposalFeedbackComposer
+            opportunityId={opportunityId}
+            onRecorded={() => { setRetryKey((k) => k + 1); }}
+          />
           <CustomerReplyComposer
             opportunityId={opportunityId}
             onRecorded={() => { setRetryKey((k) => k + 1); }}
