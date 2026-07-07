@@ -54,6 +54,7 @@ export default function DeliveryPanel({
         <div className={`delivery-item ${j.status}`} key={j.id}>
           <strong>{j.subject}</strong>
           {j.subject?.includes("PoC Proposal") && <span className="badge proposal">Proposal PDF</span>}
+          {(j.subject?.includes("Quote / SOW") || j.subject?.includes("Quote/SOW")) && <span className="badge proposal">Quote / SOW</span>}
           <dl>
             <div><dt>Recipient</dt><dd>{j.recipient}</dd></div>
             <div><dt>Channel</dt><dd>{j.channel}</dd></div>

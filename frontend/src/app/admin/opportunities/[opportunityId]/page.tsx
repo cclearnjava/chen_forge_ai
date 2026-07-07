@@ -7,6 +7,7 @@ import AdminShell from "@/components/admin/admin-shell";
 import AgentWorkbench from "@/components/admin/agent-workbench";
 import ApprovalGate from "@/components/admin/approval-gate";
 import ApprovedProposalPanel from "@/components/admin/approved-proposal-panel";
+import ApprovedQuoteSowPanel from "@/components/admin/approved-quote-sow-panel";
 import AuditTrail from "@/components/admin/audit-trail";
 import ConversationThread from "@/components/admin/conversation-thread";
 import CustomerReplyComposer from "@/components/admin/customer-reply-composer";
@@ -175,6 +176,7 @@ export default function OpportunityDetailPage() {
         <div className="detail-main">
           <AgentWorkbench artifacts={cockpit.artifacts} agentRuns={cockpit.agent_runs} />
           <ApprovedProposalPanel opportunityId={opportunityId} onDeliveryJobCreated={() => { setRetryKey((k) => k + 1); }} />
+          <ApprovedQuoteSowPanel opportunityId={opportunityId} onDeliveryJobCreated={() => { setRetryKey((k) => k + 1); }} />
           <ConversationThread messages={messages} />
           <ProposalFeedbackComposer
             opportunityId={opportunityId}

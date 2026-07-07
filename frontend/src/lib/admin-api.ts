@@ -339,6 +339,23 @@ export async function runProposalFollowupAgent(
   });
 }
 
+export interface ApprovedQuoteSowData {
+  opportunity_id: string; quote_artifact_id: string; sow_artifact_id: string;
+  quote_markdown: string; sow_markdown: string; approved_at: string;
+}
+
+export async function getApprovedQuoteSow(id: string): Promise<ApprovedQuoteSowData> {
+  return api(`/admin/opportunities/${id}/approved-quote-sow`);
+}
+
+export async function createApprovedQuoteSowDeliveryJob(
+  opportunityId: string,
+): Promise<{ delivery_job: CockpitDeliveryJob }> {
+  return api(`/admin/opportunities/${opportunityId}/approved-quote-sow/delivery-job`, {
+    method: "POST",
+  });
+}
+
 export async function runQuoteSowAgent(
   opportunityId: string,
 ): Promise<ProposalDraftResponse> {
