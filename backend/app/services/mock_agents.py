@@ -311,3 +311,88 @@ def generate_next_step_recommendation(context: dict) -> dict:
         "opportunity_update": {"stage": "negotiation", "next_step": "Send follow-up and schedule meeting"},
     }
     return {"content_markdown": content_markdown, "content_json": content_json}
+
+
+def generate_quote_draft(context: dict) -> dict:
+    proposal = context.get("approved_proposal", {})
+    fb = context.get("latest_proposal_feedback")
+    fb_text = fb.body_markdown if fb else "客户反馈"
+    title = proposal.get("opportunity_title", "PoC")
+    content_markdown = f"""# Quote Draft
+
+## 建议价格区间
+**CNY 30,000 - 50,000**
+（草案需负责人确认后才可对客发送，不构成最终报价承诺。）
+
+## 定价假设
+- 第一期 PoC 聚焦核心场景验证。
+- 客户提供必要数据和对接人。
+- 不包含第三方系统集成和长期 SLA。
+
+## 建议付款节点
+- 启动：30%
+- PoC 中期评审通过：40%
+- 最终验收通过：30%"""
+    content_json = {"title": "PoC Quote Draft", "currency": "CNY", "price_range": "30000-50000", "pricing_assumptions": ["第一期 PoC 聚焦核心场景", "客户提供数据和对接人", "不含第三方集成和长期SLA"], "payment_milestones": ["启动30%", "中期40%", "验收30%"], "validity_note": "草案需负责人确认后才可对客发送"}
+    return {"content_markdown": content_markdown, "content_json": content_json}
+
+
+def generate_sow_draft(context: dict) -> dict:
+    proposal = context.get("approved_proposal", {})
+    title = proposal.get("opportunity_title", "PoC")
+    content_markdown = f"""# Statement of Work Draft
+
+## 项目名称
+{title} — PoC 阶段
+
+## 范围
+- 聚焦 {title} 的核心场景验证。
+- 在受控数据范围内完成 AI 辅助业务流程。
+- 输出 PoC 验证报告。
+
+## 不包含范围
+- 生产环境部署与运维。
+- 全量数据迁移。
+- 第三方系统深度集成。
+- 后续长期维护和 SLA。
+
+## 交付物
+- PoC 验证环境。
+- PoC 运行报告。
+- 下一步实施建议。
+
+## 建议时间线
+- 第 1 周：需求确认与数据准备。
+- 第 2-3 周：PoC 开发与内部测试。
+- 第 4 周：客户验证与报告输出。
+
+## 验收标准
+- PoC 达到双方约定的核心指标。
+
+## 客户责任
+- 提供用于 PoC 的历史数据或知识库。
+- 安排至少一位业务对接人。
+
+## 假设条件
+- 客户数据质量和完整性满足 PoC 最低要求。
+- PoC 期间不要求对接生产系统。"""
+    content_json = {"title": "Statement of Work Draft", "scope": ["核心场景验证", "PoC 验证报告"], "out_of_scope": ["生产部署", "全量数据迁移", "第三方深度集成", "长期SLA"], "deliverables": ["PoC 验证环境", "PoC 运行报告", "下一步建议"], "timeline": ["第1周需求确认", "第2-3周开发测试", "第4周客户验证"], "acceptance_criteria": ["核心指标达标"], "customer_responsibilities": ["提供数据", "安排对接人"], "assumptions": ["数据质量满足要求", "不要求对接生产系统"]}
+    return {"content_markdown": content_markdown, "content_json": content_json}
+
+
+def generate_commercial_review(context: dict) -> dict:
+    content_markdown = """# Commercial Review
+
+## 风险等级
+**medium** — 建议负责人确认报价边界和 SOW 范围后再推进客户确认。
+
+## 风险提示
+- 价格为草案，不构成最终报价承诺。
+- 付款节点为建议，需双方书面确认。
+- 范围以双方确认的 SOW 为准。
+- 第三方系统集成默认不包含。
+
+## 建议下一步
+负责人确认报价和 SOW 边界后，准备客户确认材料。"""
+    content_json = {"risk_level": "medium", "risk_flags": ["价格草案", "付款节点建议", "范围边界", "第三方系统默认不包含"], "approval_notes": ["需负责人审批", "审批不代表报价生效"], "recommended_next_step": "负责人确认报价和SOW边界后，准备客户确认材料"}
+    return {"content_markdown": content_markdown, "content_json": content_json}

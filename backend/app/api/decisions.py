@@ -118,6 +118,24 @@ def _approve_proposal_decision(d: Decision, artifact: Artifact, opp: Opportunity
     ))
 
 
+def _approve_quote_decision(d: Decision, artifact: Artifact, opp: Opportunity,
+                             db: Session, admin: str, req: DecisionAction):
+    _resolve_decision_common(d, req)
+
+    artifact.approved_at = dt.utcnow()
+    opp.stage = OpportunityStage.negotiation
+    opp.next_step = "Review approved Quote/SOW and prepare customer confirmation"
+
+    db.add(AuditLog(
+        lead_id=d.lead_id, actor=admin, action="quote_sow_approved",
+        details_json={
+            "decision_id": d.id, "artifact_id": artifact.id,
+            "opportunity_id": opp.id, "artifact_type": "quote_draft",
+            "operator_note": req.operator_note,
+        },
+    ))
+
+
 @router.post("/{decision_id}/approve")
 def approve_decision(
     decision_id: str,
@@ -140,6 +158,8 @@ def approve_decision(
         _approve_customer_reply_decision(d, artifact, opp, db, admin, req)
     elif artifact.type == ArtifactType.proposal_draft:
         _approve_proposal_decision(d, artifact, opp, db, admin, req)
+    elif artifact.type == ArtifactType.quote_draft:
+        _approve_quote_decision(d, artifact, opp, db, admin, req)
     else:
         raise HTTPException(status_code=422,
                             detail=f"Unsupported artifact type for approval: {artifact.type.value}")

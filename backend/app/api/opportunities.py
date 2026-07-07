@@ -17,6 +17,7 @@ from app.schemas import (
 from app.services.approved_proposal import find_latest_approved_proposal
 from app.services.proposal_draft_workflow import run_proposal_draft_workflow
 from app.services.proposal_followup_workflow import run_proposal_followup_workflow
+from app.services.quote_sow_workflow import run_quote_sow_workflow
 from app.services.proposal_pdf_renderer import render_approved_proposal_pdf
 from app.services.proposal_pdf_storage import storage as pdf_storage
 from app.services.sales_reply_workflow import run_sales_reply_workflow
@@ -931,4 +932,39 @@ def trigger_proposal_followup(
             "recommendation": r["decision"].recommendation,
             "status": _enum_value(r["decision"].status),
         },
+    }
+
+
+# ── BE-05: Quote / SOW Draft ──
+
+@router.post("/admin/agent-runs/quote-sow")
+def trigger_quote_sow(
+    req: ProposalFollowupRequest,
+    db: Session = Depends(get_db),
+    _admin: str = Depends(get_admin_email),
+):
+    opp = db.query(Opportunity).filter(Opportunity.id == req.opportunity_id).first()
+    if not opp:
+        raise HTTPException(status_code=404, detail="Opportunity not found")
+    try:
+        result = run_quote_sow_workflow(db, req.opportunity_id)
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Quote/SOW workflow failed")
+    r = result
+    return {
+        "agent_run": {"id": r["agent_run"].id, "status": _enum_value(r["agent_run"].status)},
+        "artifacts": [
+            {"id": a.id, "type": _enum_value(a.type), "title": a.title,
+             "content_markdown": a.content_markdown, "content_json": a.content_json,
+             "model": a.model, "requires_approval": a.requires_approval,
+             "created_at": _to_iso(a.created_at)}
+            for a in r["artifacts"]
+        ],
+        "decision": {"id": r["decision"].id, "question": r["decision"].question,
+                     "status": _enum_value(r["decision"].status)},
     }
