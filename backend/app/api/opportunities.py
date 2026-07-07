@@ -6,7 +6,8 @@ from app.db import get_db
 from app.auth.middleware import get_admin_email
 from app.models import (
     AgentRun, Artifact, AuditLog, Contact, Conversation, Customer, Decision,
-    DeliveryJob, Message, MessageSenderType, Opportunity, OpportunityStage,
+    DeliveryChannel, DeliveryJob, DeliveryStatus, Message, MessageSenderType,
+    Opportunity, OpportunityStage,
 )
 from app.schemas import (
     AdminOpportunityCockpitOut, OpportunityMessageCreateIn,
@@ -16,6 +17,7 @@ from app.schemas import (
 from app.services.approved_proposal import find_latest_approved_proposal
 from app.services.proposal_draft_workflow import run_proposal_draft_workflow
 from app.services.proposal_pdf_renderer import render_approved_proposal_pdf
+from app.services.proposal_pdf_storage import storage as pdf_storage
 from app.services.sales_reply_workflow import run_sales_reply_workflow
 
 
@@ -722,3 +724,91 @@ def download_approved_proposal_pdf(
             "Content-Disposition": f"attachment; filename=chenforge-proposal-{opportunity_id[:8]}.pdf"
         },
     )
+
+
+# ── BE-01: Proposal Delivery Job ──
+
+class ProposalDeliveryRequest(BaseModel):
+    operator_note: str = ""
+
+
+@router.post("/admin/opportunities/{opportunity_id}/approved-proposal/delivery-job", status_code=201)
+def create_proposal_delivery_job(
+    opportunity_id: str,
+    req: ProposalDeliveryRequest = ProposalDeliveryRequest(),
+    db: Session = Depends(get_db),
+    admin: str = Depends(get_admin_email),
+):
+    # Find latest approved proposal
+    data = find_latest_approved_proposal(db, opportunity_id)
+    if not data:
+        raise HTTPException(status_code=404, detail="No approved proposal found for this opportunity")
+
+    artifact_id = data["artifact_id"]
+
+    # Check for existing draft DeliveryJob for this artifact
+    existing = (
+        db.query(DeliveryJob)
+        .filter(DeliveryJob.artifact_id == artifact_id, DeliveryJob.status == DeliveryStatus.draft)
+        .first()
+    )
+    if existing:
+        return {"delivery_job": {
+            "id": existing.id, "lead_id": existing.lead_id,
+            "artifact_id": existing.artifact_id,
+            "channel": _enum_value(existing.channel),
+            "recipient": existing.recipient, "subject": existing.subject,
+            "body_markdown": existing.body_markdown,
+            "status": _enum_value(existing.status),
+            "created_at": _to_iso(existing.created_at),
+            "sent_at": _to_iso(existing.sent_at),
+        }}
+
+    # Ensure PDF is available
+    try:
+        render_approved_proposal_pdf(data)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+    # Determine recipient
+    recipient = data.get("customer_name", "unknown")
+    opp = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
+    if opp and opp.customer_id:
+        cust = db.query(Customer).filter(Customer.id == opp.customer_id).first()
+        if cust:
+            recipient = cust.owner_email
+
+    job = DeliveryJob(
+        lead_id=opp.lead_id if opp else None,
+        artifact_id=artifact_id,
+        channel=DeliveryChannel.manual_copy,
+        recipient=recipient,
+        subject=f"PoC Proposal: {data.get('opportunity_title', '')}",
+        body_markdown="已准备 PoC Proposal PDF，请下载后通过外部渠道发送给客户。",
+        status=DeliveryStatus.draft,
+    )
+    db.add(job)
+    db.flush()
+
+    db.add(AuditLog(
+        lead_id=opp.lead_id if opp else None,
+        actor=admin,
+        action="proposal_delivery_job_created",
+        details_json={
+            "opportunity_id": opportunity_id,
+            "artifact_id": artifact_id,
+            "decision_id": data["decision_id"],
+            "delivery_job_id": job.id,
+            "pdf_storage_key": pdf_storage.path(opportunity_id, artifact_id),
+        },
+    ))
+
+    db.commit()
+    return {"delivery_job": {
+        "id": job.id, "lead_id": job.lead_id, "artifact_id": job.artifact_id,
+        "channel": _enum_value(job.channel),
+        "recipient": job.recipient, "subject": job.subject,
+        "body_markdown": job.body_markdown,
+        "status": _enum_value(job.status),
+        "created_at": _to_iso(job.created_at), "sent_at": _to_iso(job.sent_at),
+    }}

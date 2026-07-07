@@ -2,7 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db import get_db
 from app.auth.middleware import get_admin_email
-from app.models import AuditLog, DeliveryJob, Artifact, DeliveryStatus, DeliveryChannel
+from app.models import (
+    Artifact, ArtifactType, AuditLog, DeliveryChannel, DeliveryJob,
+    DeliveryStatus, Message, MessageSenderType, Opportunity,
+)
 from app.schemas import DeliveryJobCreate, DeliveryJobMarkSentIn, DeliveryJobMarkSentOut
 from app.config import settings
 
@@ -120,6 +123,35 @@ def mark_delivery_job_sent(
             "operator_note": req.operator_note,
         },
     ))
+
+    # BE-03: If this is a proposal delivery, write Conversation Message + proposal_sent AuditLog
+    artifact = db.query(Artifact).filter(Artifact.id == job.artifact_id).first()
+    if artifact and artifact.type == ArtifactType.proposal_draft:
+        if artifact.opportunity_id:
+            opp = db.query(Opportunity).filter(Opportunity.id == artifact.opportunity_id).first()
+            if opp and opp.conversation_id:
+                db.add(Message(
+                    conversation_id=opp.conversation_id,
+                    customer_id=opp.customer_id,
+                    contact_id=opp.primary_contact_id,
+                    sender_type=MessageSenderType.owner,
+                    sender_label=admin,
+                    body_markdown=f"已发送 PoC Proposal PDF：{job.subject}",
+                    source="delivery",
+                ))
+
+        db.add(AuditLog(
+            lead_id=job.lead_id,
+            actor=admin,
+            action="proposal_sent",
+            details_json={
+                "delivery_job_id": job.id,
+                "artifact_id": job.artifact_id,
+                "opportunity_id": artifact.opportunity_id,
+                "recipient": job.recipient,
+                "operator_note": req.operator_note,
+            },
+        ))
 
     db.commit()
     return {"delivery_job": _job_to_dict(job)}
