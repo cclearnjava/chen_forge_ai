@@ -177,6 +177,12 @@ export const opportunities: Opportunity[] = [
   },
 ];
 
+export const mockQuoteSowArtifacts = [
+  { id: "art-quote-1", type: "quote_draft", title: "Quote Draft", model: "mock-quote-sow-v1", requires_approval: true, created_at: new Date().toISOString(), content_markdown: "# Quote Draft\n\n**CNY 30,000 - 50,000**\n\n草案需负责人确认后才可对客发送。" },
+  { id: "art-sow-1", type: "sow_draft", title: "SOW Draft", model: "mock-quote-sow-v1", requires_approval: true, created_at: new Date().toISOString(), content_markdown: "# SOW Draft\n\n范围：核心场景验证\n不含：生产部署、全量数据迁移" },
+  { id: "art-review-1", type: "commercial_review", title: "Commercial Review", model: "mock-quote-sow-v1", requires_approval: false, created_at: new Date().toISOString(), content_markdown: "# Commercial Review\n\n风险等级：medium\n\n价格为草案，不构成最终报价承诺。" },
+];
+
 export function getOpportunity(id: string) {
   return opportunities.find((item) => item.id === id) ?? opportunities[0];
 }
