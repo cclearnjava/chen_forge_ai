@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from starlette.responses import Response
+from starlette.responses import JSONResponse, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session, joinedload
 from app.db import get_db
@@ -732,7 +732,7 @@ class ProposalDeliveryRequest(BaseModel):
     operator_note: str = ""
 
 
-@router.post("/admin/opportunities/{opportunity_id}/approved-proposal/delivery-job", status_code=201)
+@router.post("/admin/opportunities/{opportunity_id}/approved-proposal/delivery-job")
 def create_proposal_delivery_job(
     opportunity_id: str,
     req: ProposalDeliveryRequest = ProposalDeliveryRequest(),
@@ -753,7 +753,7 @@ def create_proposal_delivery_job(
         .first()
     )
     if existing:
-        return {"delivery_job": {
+        return JSONResponse(content={"delivery_job": {
             "id": existing.id, "lead_id": existing.lead_id,
             "artifact_id": existing.artifact_id,
             "channel": _enum_value(existing.channel),
@@ -762,13 +762,13 @@ def create_proposal_delivery_job(
             "status": _enum_value(existing.status),
             "created_at": _to_iso(existing.created_at),
             "sent_at": _to_iso(existing.sent_at),
-        }}
+        }}, status_code=200)
 
     # Ensure PDF is available
     try:
         render_approved_proposal_pdf(data)
-    except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"PDF generation failed: {exc}")
 
     # Determine recipient
     recipient = data.get("customer_name", "unknown")
@@ -804,11 +804,11 @@ def create_proposal_delivery_job(
     ))
 
     db.commit()
-    return {"delivery_job": {
+    return JSONResponse(content={"delivery_job": {
         "id": job.id, "lead_id": job.lead_id, "artifact_id": job.artifact_id,
         "channel": _enum_value(job.channel),
         "recipient": job.recipient, "subject": job.subject,
         "body_markdown": job.body_markdown,
         "status": _enum_value(job.status),
         "created_at": _to_iso(job.created_at), "sent_at": _to_iso(job.sent_at),
-    }}
+    }}, status_code=201)

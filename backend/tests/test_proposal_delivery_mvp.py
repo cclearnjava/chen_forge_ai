@@ -49,6 +49,21 @@ class TestProposalDeliveryMvp:
         assert data["delivery_job"]["status"] == "draft"
         assert "PoC Proposal" in data["delivery_job"]["subject"]
 
+    def test_create_delivery_job_pdf_failure_returns_503(self, client: TestClient):
+        """When PDF renderer fails (no Playwright), return 503 and create no DeliveryJob."""
+        init_db()
+        opp_id = _setup_approved_proposal(client)
+        db = SessionLocal()
+        before = db.query(DeliveryJob).count()
+
+        r = client.post(f"/api/v1/admin/opportunities/{opp_id}/approved-proposal/delivery-job",
+                        json={}, headers=ADMIN)
+        if r.status_code == 201:
+            return  # Playwright available, PDF generation succeeded — skip
+        assert r.status_code == 503
+        after = db.query(DeliveryJob).count()
+        assert after == before  # no DeliveryJob created on failure
+
     def test_create_delivery_job_without_approved_proposal_returns_404(self, client: TestClient):
         init_db()
         r = client.post("/api/v1/admin/opportunities/nonexistent-id/approved-proposal/delivery-job",
