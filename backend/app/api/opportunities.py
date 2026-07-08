@@ -632,9 +632,7 @@ def trigger_proposal_draft(
     db: Session = Depends(get_db),
     _admin: str = Depends(get_admin_email),
 ):
-    opp = db.query(Opportunity).filter(Opportunity.id == req.opportunity_id).first()
-    if not opp:
-        raise HTTPException(status_code=404, detail="Opportunity not found")
+    opp = get_scoped_or_404(db, Opportunity, req.opportunity_id, label="Opportunity")
 
     try:
         result = run_proposal_draft_workflow(db, req.opportunity_id)
@@ -771,7 +769,7 @@ def create_proposal_delivery_job(
 
     # Determine recipient
     recipient = data.get("customer_name", "unknown")
-    opp = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
+    opp = get_scoped_or_404(db, Opportunity, opportunity_id, label="Opportunity")
     if opp and opp.customer_id:
         cust = db.query(Customer).filter(Customer.id == opp.customer_id).first()
         if cust:
@@ -896,9 +894,7 @@ def trigger_proposal_followup(
     db: Session = Depends(get_db),
     _admin: str = Depends(get_admin_email),
 ):
-    opp = db.query(Opportunity).filter(Opportunity.id == req.opportunity_id).first()
-    if not opp:
-        raise HTTPException(status_code=404, detail="Opportunity not found")
+    opp = get_scoped_or_404(db, Opportunity, req.opportunity_id, label="Opportunity")
 
     try:
         result = run_proposal_followup_workflow(db, req.opportunity_id)
@@ -1024,7 +1020,7 @@ def create_quote_sow_delivery_job(
         }}, status_code=200)
 
     recipient = "unknown"
-    opp = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
+    opp = get_scoped_or_404(db, Opportunity, opportunity_id, label="Opportunity")
     if opp and opp.customer_id:
         cust = db.query(Customer).filter(Customer.id == opp.customer_id).first()
         if cust:
