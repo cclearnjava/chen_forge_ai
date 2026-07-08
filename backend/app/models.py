@@ -138,6 +138,104 @@ class Workspace(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
 
+
+class EventSeverity(str, enum.Enum):
+    info = "info"
+    success = "success"
+    warning = "warning"
+    critical = "critical"
+
+
+class NotificationKind(str, enum.Enum):
+    lead_created = "lead_created"
+    customer_reply_recorded = "customer_reply_recorded"
+    approval_required = "approval_required"
+    proposal_ready = "proposal_ready"
+    quote_sow_ready = "quote_sow_ready"
+    delivery_action_required = "delivery_action_required"
+    delivery_sent = "delivery_sent"
+    delivery_failed = "delivery_failed"
+    system_notice = "system_notice"
+
+
+class NotificationReadStatus(str, enum.Enum):
+    unread = "unread"
+    read = "read"
+    archived = "archived"
+
+
+class NotifDeliveryChannel(str, enum.Enum):
+    in_app = "in_app"
+    email = "email"
+    feishu = "feishu"
+    wecom = "wecom"
+
+
+class NotificationDeliveryStatus(str, enum.Enum):
+    pending = "pending"
+    delivered = "delivered"
+    failed = "failed"
+
+
+
+
+class Event(Base):
+    __tablename__ = "events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    workspace_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True)
+    type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    source: Mapped[str] = mapped_column(String(100), nullable=False)
+    severity: Mapped[EventSeverity] = mapped_column(SAEnum(EventSeverity), default=EventSeverity.info, nullable=False)
+    subject_type: Mapped[str | None] = mapped_column(String(100))
+    subject_id: Mapped[str | None] = mapped_column(String(36))
+    actor: Mapped[str] = mapped_column(String(255), nullable=False, default="system")
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    summary: Mapped[str | None] = mapped_column(Text)
+    payload_json: Mapped[dict | None] = mapped_column(JSON)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    workspace_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True)
+    event_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("events.id"), index=True)
+    kind: Mapped[NotificationKind] = mapped_column(SAEnum(NotificationKind), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    body: Mapped[str | None] = mapped_column(Text)
+    severity: Mapped[EventSeverity] = mapped_column(SAEnum(EventSeverity), default=EventSeverity.info, nullable=False)
+    status: Mapped[NotificationReadStatus] = mapped_column(SAEnum(NotificationReadStatus), default=NotificationReadStatus.unread, nullable=False, index=True)
+    target_type: Mapped[str | None] = mapped_column(String(100))
+    target_id: Mapped[str | None] = mapped_column(String(36))
+    target_url: Mapped[str | None] = mapped_column(String(500))
+    read_at: Mapped[datetime | None] = mapped_column(DateTime)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+
+
+class NotificationDelivery(Base):
+    __tablename__ = "notification_deliveries"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    workspace_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True)
+    notification_id: Mapped[str] = mapped_column(String(36), ForeignKey("notifications.id"), nullable=False, index=True)
+    channel: Mapped[NotifDeliveryChannel] = mapped_column(SAEnum(NotifDeliveryChannel), default=NotifDeliveryChannel.in_app, nullable=False)
+    recipient: Mapped[str | None] = mapped_column(String(255))
+    status: Mapped[NotificationDeliveryStatus] = mapped_column(SAEnum(NotificationDeliveryStatus), default=NotificationDeliveryStatus.delivered, nullable=False)
+    provider: Mapped[str | None] = mapped_column(String(100))
+    provider_message_id: Mapped[str | None] = mapped_column(String(255))
+    error_message: Mapped[str | None] = mapped_column(Text)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=1)
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+
+
+
 class Lead(Base):
     __tablename__ = "leads"
 
@@ -456,10 +554,10 @@ class NotificationEvent(Base):
     workspace_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     lead_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("leads.id"), index=True)
-    channel: Mapped[NotificationChannel] = mapped_column(SAEnum(NotificationChannel), nullable=False)
+    channel: Mapped[NotifDeliveryChannel] = mapped_column(SAEnum(NotifDeliveryChannel), nullable=False)
     event_type: Mapped[str] = mapped_column(String(100), nullable=False)
-    status: Mapped[NotificationStatus] = mapped_column(
-        SAEnum(NotificationStatus), default=NotificationStatus.pending, nullable=False
+    status: Mapped[NotificationReadStatus] = mapped_column(
+        SAEnum(NotificationReadStatus), default=NotificationStatus.pending, nullable=False
     )
     payload_json: Mapped[dict | None] = mapped_column(JSON)
     error_message: Mapped[str | None] = mapped_column(Text)

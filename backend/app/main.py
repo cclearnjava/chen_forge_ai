@@ -11,6 +11,7 @@ from app.api.customers import router as customers_router
 from app.api.opportunities import router as opportunities_router
 from app.api.conversations import router as conversations_router
 from app.api.workspace_api import router as workspace_router
+from app.api.notifications import router as notifications_router
 from app.db import init_db
 
 app = FastAPI(
@@ -39,6 +40,7 @@ app.include_router(customers_router, prefix="/api/v1")
 app.include_router(opportunities_router, prefix="/api/v1")
 app.include_router(conversations_router, prefix="/api/v1")
 app.include_router(workspace_router, prefix="/api/v1")
+app.include_router(notifications_router, prefix="/api/v1")
 
 
 @app.on_event("startup")

@@ -5,6 +5,7 @@ from app.auth.middleware import get_admin_email, get_current_email
 from app.schemas import LeadCreate, LeadUpdate, LeadOut, AttachmentOut, PaginatedResponse
 from app.models import Lead, LeadAttachment, LeadStatus
 from app.services.customer_lifecycle import create_lifecycle_from_lead
+from app.services.events import record_event
 from app.services.workspace import get_default_workspace_id
 from app.config import settings
 import os
@@ -49,6 +50,16 @@ def create_lead(req: LeadCreate, db: Session = Depends(get_db), email: str = Dep
     db.flush()
 
     lifecycle = create_lifecycle_from_lead(db, lead.id)
+    db.commit()
+
+    record_event(
+        db, workspace_id=workspace_id, type="lead.created", source="lead_api",
+        subject_type="lead", subject_id=lead.id,
+        title=f"新线索：{lead.company} 提交了 AI 咨询需求",
+        summary=lead.problem,
+        target_type="opportunity", target_id=lifecycle["opportunity"]["id"],
+        target_url=f"/admin/opportunities/{lifecycle['opportunity']['id']}",
+    )
     db.commit()
 
     return {"lead": _lead_to_dict(lead), "lifecycle": lifecycle}

@@ -547,3 +547,67 @@ class ProposalDraftResponseOut(BaseModel):
     agent_run: ProposalDraftAgentRunOut
     artifact: ProposalDraftArtifactOut
     decision: ProposalDraftDecisionOut
+
+
+# ── Event & Notification ──
+class EventOut(BaseModel):
+    id: str
+    workspace_id: str | None = None
+    type: str
+    source: str
+    severity: str
+    subject_type: str | None = None
+    subject_id: str | None = None
+    actor: str
+    title: str
+    summary: str | None = None
+    payload_json: dict | None = None
+    occurred_at: datetime
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class NotificationOut(BaseModel):
+    id: str
+    workspace_id: str | None = None
+    event_id: str | None = None
+    kind: str
+    title: str
+    body: str | None = None
+    severity: str
+    status: str
+    target_type: str | None = None
+    target_id: str | None = None
+    target_url: str | None = None
+    read_at: datetime | None = None
+    archived_at: datetime | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class NotificationSummaryOut(BaseModel):
+    unread_count: int = 0
+    critical_count: int = 0
+    latest: list[NotificationOut] = Field(default_factory=list)
+
+
+class NotificationDeliveryOut(BaseModel):
+    id: str
+    workspace_id: str | None = None
+    notification_id: str
+    channel: str
+    recipient: str | None = None
+    status: str
+    provider: str | None = None
+    provider_message_id: str | None = None
+    error_message: str | None = None
+    attempt_count: int
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class NotificationMarkReadIn(BaseModel):
+    notification_ids: list[str] | None = None
