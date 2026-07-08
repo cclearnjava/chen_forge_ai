@@ -33,6 +33,7 @@ def _create_artifact(db: Session, *, workspace_id: str, agent_run_id: str, oppor
                      title: str, content_markdown: str, content_json: dict,
                      model: str, prompt_version: str, requires_approval: bool) -> Artifact:
     artifact = Artifact(
+        workspace_id=workspace_id,
         agent_run_id=agent_run_id,
         opportunity_id=opportunity_id,
         lead_id=lead_id,
@@ -71,6 +72,7 @@ def run_sales_reply_workflow(db: Session, opportunity_id: str) -> dict:
 
     # 3. Create Sales AgentRun
     sales_run = AgentRun(
+        workspace_id=sales_wid,
         agent_profile_id=sales_profile.id,
         lead_id=lead_id,
         opportunity_id=opportunity_id,
@@ -137,6 +139,7 @@ def run_sales_reply_workflow(db: Session, opportunity_id: str) -> dict:
 
     # 8. Create Quality AgentRun
     quality_run = AgentRun(
+        workspace_id=quality_wid,
         agent_profile_id=quality_profile.id,
         lead_id=lead_id,
         opportunity_id=opportunity_id,

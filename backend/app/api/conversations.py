@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db import get_db
+from app.services.workspace import get_default_workspace_id
 from app.auth.middleware import get_admin_email
 from app.models import AuditLog, Conversation, Message, MessageSenderType
 from app.schemas import MessageCreate
@@ -47,7 +48,9 @@ def create_message(
         allowed = [e.value for e in MessageSenderType]
         raise HTTPException(status_code=422, detail=f"Invalid sender_type. Allowed: {allowed}")
 
+    wid = get_default_workspace_id(db)
     message = Message(
+        workspace_id=wid,
         conversation_id=conversation_id,
         customer_id=conv.customer_id,
         contact_id=conv.primary_contact_id,
@@ -60,6 +63,7 @@ def create_message(
     db.flush()
 
     db.add(AuditLog(
+        workspace_id=wid,
         lead_id=conv.lead_id,
         actor=admin,
         action="message_created",

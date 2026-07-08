@@ -14,6 +14,7 @@ from app.schemas import (
     OpportunityMessageCreateOut, OpportunityUpdate,
     ProposalDraftResponseOut,
 )
+from app.services.workspace import get_default_workspace_id
 from app.services.approved_proposal import find_latest_approved_proposal
 from app.services.proposal_draft_workflow import run_proposal_draft_workflow
 from app.services.proposal_followup_workflow import run_proposal_followup_workflow
@@ -40,7 +41,9 @@ def list_opportunities(
     db: Session = Depends(get_db),
     _admin: str = Depends(get_admin_email),
 ):
+    wid = get_default_workspace_id(db)
     query = db.query(Opportunity).options(joinedload(Opportunity.customer))
+    query = query.filter((Opportunity.workspace_id == wid) | (Opportunity.workspace_id.is_(None)))
     if stage:
         try:
             OpportunityStage(stage)

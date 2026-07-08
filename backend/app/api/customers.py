@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 from app.db import get_db
+from app.services.workspace import get_default_workspace_id
 from app.auth.middleware import get_admin_email
 from app.models import Customer
 
@@ -15,7 +16,9 @@ def list_customers(
     db: Session = Depends(get_db),
     _admin: str = Depends(get_admin_email),
 ):
+    wid = get_default_workspace_id(db)
     query = db.query(Customer)
+    query = query.filter((Customer.workspace_id == wid) | (Customer.workspace_id.is_(None)))
     if q:
         query = query.filter(
             (Customer.name.ilike(f"%{q}%")) | (Customer.owner_email.ilike(f"%{q}%"))

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db import get_db
+from app.services.workspace import get_default_workspace_id
 from app.auth.middleware import get_admin_email
 from app.models import (
     Artifact, ArtifactType, AuditLog, DeliveryChannel, DeliveryJob,
@@ -40,7 +41,9 @@ def create_delivery_job(
     if artifact.requires_approval:
         raise HTTPException(status_code=422, detail="Artifact must be approved before delivery")
 
+    wid = get_default_workspace_id(db)
     job = DeliveryJob(
+        workspace_id=wid,
         lead_id=req.lead_id,
         artifact_id=req.artifact_id,
         channel=DeliveryChannel(req.channel),
@@ -111,7 +114,10 @@ def mark_delivery_job_sent(
     job.status = DeliveryStatus.sent
     job.sent_at = dt.utcnow()
 
+    mark_wid = job.workspace_id or get_default_workspace_id(db)
+
     db.add(AuditLog(
+        workspace_id=mark_wid,
         lead_id=job.lead_id,
         actor=admin,
         action="delivery_job_marked_sent",
@@ -131,6 +137,7 @@ def mark_delivery_job_sent(
             opp = db.query(Opportunity).filter(Opportunity.id == artifact.opportunity_id).first()
             if opp and opp.conversation_id:
                 db.add(Message(
+                    workspace_id=mark_wid,
                     conversation_id=opp.conversation_id,
                     customer_id=opp.customer_id,
                     contact_id=opp.primary_contact_id,
@@ -141,6 +148,7 @@ def mark_delivery_job_sent(
                 ))
 
         db.add(AuditLog(
+            workspace_id=mark_wid,
             lead_id=job.lead_id,
             actor=admin,
             action="proposal_sent",
@@ -162,6 +170,7 @@ def mark_delivery_job_sent(
                 opp.next_step = "Wait for customer confirmation or prepare contract draft"
                 if opp.conversation_id:
                     db.add(Message(
+                        workspace_id=mark_wid,
                         conversation_id=opp.conversation_id, customer_id=opp.customer_id,
                         contact_id=opp.primary_contact_id, sender_type=MessageSenderType.owner,
                         sender_label=admin,
@@ -169,6 +178,7 @@ def mark_delivery_job_sent(
                         source="delivery",
                     ))
         db.add(AuditLog(
+            workspace_id=mark_wid,
             lead_id=job.lead_id, actor=admin, action="quote_sow_sent",
             details_json={
                 "delivery_job_id": job.id, "quote_artifact_id": job.artifact_id,

@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 from app.db import get_db
 from app.auth.middleware import get_admin_email
+from app.services.workspace import get_default_workspace_id
 from app.models import (
     Artifact, ArtifactType, AuditLog, Contact, Conversation, Customer,
     Decision, DecisionStatus, DeliveryChannel, DeliveryJob, DeliveryStatus,
@@ -72,7 +73,9 @@ def _approve_customer_reply_decision(d: Decision, artifact: Artifact, opp: Oppor
         if customer:
             recipient = customer.owner_email
 
+    wid = d.workspace_id or artifact.workspace_id or get_default_workspace_id(db)
     job = DeliveryJob(
+        workspace_id=wid,
         lead_id=d.lead_id, artifact_id=artifact.id,
         channel=DeliveryChannel.manual_copy, recipient=recipient,
         subject=f"ChenForge AI 回复：{opp.title}",
@@ -83,6 +86,7 @@ def _approve_customer_reply_decision(d: Decision, artifact: Artifact, opp: Oppor
     db.flush()
 
     message = Message(
+        workspace_id=wid,
         conversation_id=opp.conversation_id, customer_id=opp.customer_id,
         contact_id=opp.primary_contact_id, sender_type=MessageSenderType.owner,
         sender_label=admin, body_markdown=artifact.content_markdown or "",

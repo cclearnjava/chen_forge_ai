@@ -27,6 +27,7 @@ class LeadUpdate(BaseModel):
 
 class LeadOut(BaseModel):
     id: str
+    workspace_id: str | None = None
     owner_email: str
     company: str
     contact_name: str | None = None
@@ -82,6 +83,7 @@ class AttachmentOut(BaseModel):
 # ── Artifact ──
 class ArtifactOut(BaseModel):
     id: str
+    workspace_id: str | None = None
     lead_id: str | None = None
     agent_run_id: str | None = None
     opportunity_id: str | None = None
@@ -111,6 +113,7 @@ class ArtifactApprove(BaseModel):
 # ── Decision ──
 class DecisionOut(BaseModel):
     id: str
+    workspace_id: str | None = None
     lead_id: str | None = None
     agent_run_id: str | None = None
     opportunity_id: str | None = None
@@ -150,6 +153,7 @@ class RunAgentRequest(BaseModel):
 
 class AgentProfileOut(BaseModel):
     id: str
+    workspace_id: str | None = None
     name: str
     display_name: str
     role: str
@@ -165,6 +169,7 @@ class AgentProfileOut(BaseModel):
 
 class AgentRunOut(BaseModel):
     id: str
+    workspace_id: str | None = None
     agent_profile_id: str
     lead_id: str | None = None
     opportunity_id: str | None = None
@@ -182,6 +187,7 @@ class AgentRunOut(BaseModel):
 
 class ToolInvocationOut(BaseModel):
     id: str
+    workspace_id: str | None = None
     agent_run_id: str
     tool_name: str
     input_json: dict | None = None
@@ -204,6 +210,7 @@ class DeliveryJobCreate(BaseModel):
 
 class DeliveryJobOut(BaseModel):
     id: str
+    workspace_id: str | None = None
     lead_id: str
     artifact_id: str
     channel: str
@@ -231,6 +238,7 @@ class DeliveryJobMarkSentOut(BaseModel):
 # ── Customer Lifecycle ──
 class CustomerOut(BaseModel):
     id: str
+    workspace_id: str | None = None
     name: str
     owner_email: str
     industry: str | None = None
@@ -245,6 +253,7 @@ class CustomerOut(BaseModel):
 
 class ContactOut(BaseModel):
     id: str
+    workspace_id: str | None = None
     customer_id: str
     name: str | None = None
     email: str | None = None
@@ -260,6 +269,7 @@ class ContactOut(BaseModel):
 
 class ConversationOut(BaseModel):
     id: str
+    workspace_id: str | None = None
     customer_id: str
     lead_id: str | None = None
     primary_contact_id: str | None = None
@@ -274,6 +284,7 @@ class ConversationOut(BaseModel):
 
 class MessageOut(BaseModel):
     id: str
+    workspace_id: str | None = None
     conversation_id: str
     customer_id: str
     contact_id: str | None = None
@@ -289,6 +300,7 @@ class MessageOut(BaseModel):
 
 class OpportunityOut(BaseModel):
     id: str
+    workspace_id: str | None = None
     customer_id: str
     lead_id: str | None = None
     primary_contact_id: str | None = None
