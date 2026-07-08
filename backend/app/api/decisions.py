@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.db import get_db
 from app.services.workspace_guard import get_scoped_or_404
 from app.auth.middleware import get_admin_email
+from app.services.events import record_event
 from app.services.workspace import get_default_workspace_id
 from app.models import (
     Artifact, ArtifactType, AuditLog, Contact, Conversation, Customer,
@@ -174,6 +175,11 @@ def approve_decision(
         raise HTTPException(status_code=422,
                             detail=f"Unsupported artifact type for approval: {artifact.type.value}")
 
+    record_event(db, workspace_id=artifact.workspace_id, type="decision.approved", source="decision_api",
+                  subject_type="decision", subject_id=d.id,
+                  title="Decision approved",
+                  target_type="opportunity", target_id=opp.id,
+                  target_url=f"/admin/opportunities/{opp.id}")
     db.commit()
     return {"decision": _decision_to_dict(d)}
 

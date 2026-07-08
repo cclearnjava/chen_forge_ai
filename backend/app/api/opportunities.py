@@ -15,6 +15,7 @@ from app.schemas import (
     ProposalDraftResponseOut,
 )
 from app.services.workspace import get_default_workspace_id
+from app.services.events import record_event
 from app.services.workspace_guard import get_scoped_or_404, inherit_workspace_id
 from app.services.approved_proposal import find_latest_approved_proposal
 from app.services.proposal_draft_workflow import run_proposal_draft_workflow
@@ -348,6 +349,11 @@ def trigger_sales_reply(
 
     try:
         result = run_sales_reply_workflow(db, req.opportunity_id)
+        record_event(db, workspace_id=opp.workspace_id, type="decision.waiting", source="sales_workflow",
+                      subject_type="decision", subject_id=result["decision"].id,
+                      title="Approval required: customer reply draft",
+                      target_type="opportunity", target_id=req.opportunity_id,
+                      target_url=f"/admin/opportunities/{req.opportunity_id}")
         db.commit()
     except ValueError as exc:
         db.rollback()
@@ -638,6 +644,11 @@ def trigger_proposal_draft(
 
     try:
         result = run_proposal_draft_workflow(db, req.opportunity_id)
+        record_event(db, workspace_id=opp.workspace_id, type="artifact.proposal_draft.created", source="proposal_workflow",
+                      subject_type="artifact", subject_id=result["artifact"].id,
+                      title="Proposal draft generated",
+                      target_type="opportunity", target_id=req.opportunity_id,
+                      target_url=f"/admin/opportunities/{req.opportunity_id}")
         db.commit()
     except ValueError as exc:
         db.rollback()
@@ -879,6 +890,11 @@ def record_proposal_feedback(
         },
     ))
 
+    record_event(db, workspace_id=msg_wid, type="message.customer_recorded", source="opportunity_api",
+                  subject_type="opportunity", subject_id=opp.id,
+                  title="客户回复已记录", summary=req.body_markdown[:100],
+                  target_type="opportunity", target_id=opp.id,
+                  target_url=f"/admin/opportunities/{opp.id}")
     db.commit()
     return {
         "message": {
@@ -908,6 +924,11 @@ def trigger_proposal_followup(
 
     try:
         result = run_proposal_followup_workflow(db, req.opportunity_id)
+        record_event(db, workspace_id=opp.workspace_id, type="decision.waiting", source="followup_workflow",
+                      subject_type="decision", subject_id=result["decision"].id,
+                      title="Approval required: proposal follow-up reply",
+                      target_type="opportunity", target_id=req.opportunity_id,
+                      target_url=f"/admin/opportunities/{req.opportunity_id}")
         db.commit()
     except ValueError as exc:
         db.rollback()
@@ -953,6 +974,11 @@ def trigger_quote_sow(
     opp = get_scoped_or_404(db, Opportunity, req.opportunity_id, label="Opportunity")
     try:
         result = run_quote_sow_workflow(db, req.opportunity_id)
+        record_event(db, workspace_id=opp.workspace_id, type="artifact.quote_draft.created", source="quote_sow_workflow",
+                      subject_type="artifact", subject_id=result["artifacts"][0].id,
+                      title="Quote/SOW draft generated",
+                      target_type="opportunity", target_id=req.opportunity_id,
+                      target_url=f"/admin/opportunities/{req.opportunity_id}")
         db.commit()
     except ValueError as exc:
         db.rollback()
