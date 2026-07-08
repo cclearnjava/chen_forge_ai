@@ -45,7 +45,7 @@ def create_message(
         allowed = [e.value for e in MessageSenderType]
         raise HTTPException(status_code=422, detail=f"Invalid sender_type. Allowed: {allowed}")
 
-    wid = get_default_workspace_id(db)
+    wid = conv.workspace_id or get_default_workspace_id(db)
     message = Message(
         workspace_id=wid,
         conversation_id=conversation_id,

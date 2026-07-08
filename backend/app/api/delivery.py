@@ -16,7 +16,7 @@ router = APIRouter(prefix="/delivery-jobs", tags=["delivery"])
 
 def _job_to_dict(j: DeliveryJob) -> dict:
     return {
-        "id": j.id, "lead_id": j.lead_id, "artifact_id": j.artifact_id,
+        "id": j.id, "workspace_id": j.workspace_id, "lead_id": j.lead_id, "artifact_id": j.artifact_id,
         "channel": j.channel.value if hasattr(j.channel, 'value') else j.channel,
         "recipient": j.recipient, "subject": j.subject,
         "body_markdown": j.body_markdown,
@@ -42,7 +42,7 @@ def create_delivery_job(
     if artifact.requires_approval:
         raise HTTPException(status_code=422, detail="Artifact must be approved before delivery")
 
-    wid = get_default_workspace_id(db)
+    wid = artifact.workspace_id or get_default_workspace_id(db)
     job = DeliveryJob(
         workspace_id=wid,
         lead_id=req.lead_id,

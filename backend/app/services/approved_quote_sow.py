@@ -18,6 +18,7 @@ def find_latest_approved_quote_sow(db: Session, opportunity_id: str, workspace_i
             Decision.resolved_at.isnot(None),
             Artifact.type == ArtifactType.quote_draft,
             (Artifact.workspace_id == workspace_id) | (Artifact.workspace_id.is_(None)),
+            (Decision.workspace_id == workspace_id) | (Decision.workspace_id.is_(None)),
         )
         .order_by(Decision.resolved_at.desc())
         .first()
