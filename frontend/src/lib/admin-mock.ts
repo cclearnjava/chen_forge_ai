@@ -187,6 +187,11 @@ export function getOpportunity(id: string) {
   return opportunities.find((item) => item.id === id) ?? opportunities[0];
 }
 
+export const currentWorkspace = {
+  name: "ChenForge AI Consulting Studio",
+  slug: "chenforge-ai-consulting",
+};
+
 export const stageLabels: Record<Stage, string> = {
   lead: "Lead",
   qualified: "Qualified",

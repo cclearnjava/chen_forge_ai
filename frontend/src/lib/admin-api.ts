@@ -36,6 +36,7 @@ export interface ContactOut {
 
 export interface CustomerOut {
   id: string;
+  workspace_id?: string | null;
   name: string;
   owner_email: string;
   industry: string | null;
@@ -97,6 +98,7 @@ export interface AuditLogOut {
 
 export interface OpportunityListItem {
   id: string;
+  workspace_id?: string | null;
   customer_id: string;
   lead_id: string | null;
   title: string;
@@ -114,6 +116,7 @@ export interface OpportunityListItem {
 
 export interface OpportunityDetail {
   id: string;
+  workspace_id?: string | null;
   title: string;
   stage: Stage;
   desired_outcome: string | null;
@@ -394,6 +397,17 @@ export async function markDeliveryJobSent(
     method: "POST",
     body: JSON.stringify({ operator_note: operatorNote || "" }),
   });
+}
+
+export interface WorkspaceOut {
+  id: string; name: string; slug: string;
+  industry: string | null; business_type: string | null;
+  positioning: string | null; is_default: boolean;
+  created_at: string; updated_at: string;
+}
+
+export async function getCurrentWorkspace(): Promise<WorkspaceOut> {
+  return api("/admin/workspace/current");
 }
 
 export const stageLabels: Record<Stage, string> = {

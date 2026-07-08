@@ -15,12 +15,14 @@ export default function AdminShell({
   title,
   subtitle,
   children,
+  workspaceName,
 }: {
   active: string;
   eyebrow: string;
   title: string;
   subtitle: string;
   children: ReactNode;
+  workspaceName?: string;
 }) {
   return (
     <main className="admin-shell">
@@ -53,7 +55,7 @@ export default function AdminShell({
             <p>{subtitle}</p>
           </div>
           <div className="admin-topbar-status">
-            <span>Admin</span>
+            <span>{workspaceName || "Admin"}</span>
             <strong>4 待跟进</strong>
           </div>
         </header>
