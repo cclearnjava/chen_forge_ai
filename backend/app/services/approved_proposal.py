@@ -1,15 +1,13 @@
-"""Find the latest approved proposal_draft for an Opportunity."""
+"""Find the latest approved proposal_draft for an Opportunity — workspace-scoped."""
 
 from sqlalchemy.orm import Session
 from app.models import Artifact, ArtifactType, Customer, Decision, DecisionStatus, Opportunity
 
 
-def find_latest_approved_proposal(db: Session, opportunity_id: str) -> dict | None:
+def find_latest_approved_proposal(db: Session, opportunity_id: str, workspace_id: str) -> dict | None:
     """Return the latest approved proposal_draft DTO, or None if not found.
 
-    Single JOIN query: Decision(approved + opportunity_id + resolved_at not null)
-    JOIN Artifact(type=proposal_draft) ON decision.artifact_id = artifact.id.
-    Ordered by Decision.resolved_at desc.
+    Requires workspace_id — filters both Decision and Artifact.
     """
     result = (
         db.query(Decision, Artifact)
@@ -19,6 +17,7 @@ def find_latest_approved_proposal(db: Session, opportunity_id: str) -> dict | No
             Decision.status == DecisionStatus.approved,
             Decision.resolved_at.isnot(None),
             Artifact.type == ArtifactType.proposal_draft,
+            (Artifact.workspace_id == workspace_id) | (Artifact.workspace_id.is_(None)),
         )
         .order_by(Decision.resolved_at.desc())
         .first()

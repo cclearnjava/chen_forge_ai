@@ -62,7 +62,7 @@ def run_sales_reply_workflow(db: Session, opportunity_id: str) -> dict:
     lead_id = ctx["lead_id"]
 
     # 2. Upsert sales_agent profile
-    sales_wid = get_default_workspace_id(db)
+    sales_wid = opp.workspace_id or get_default_workspace_id(db)
     sales_profile = _upsert_agent_profile(
         db, name="sales_agent", display_name="Sales Agent",
         role="生成客户回复草稿和澄清问题",
@@ -129,7 +129,7 @@ def run_sales_reply_workflow(db: Session, opportunity_id: str) -> dict:
     }
 
     # 7. Upsert quality_agent profile
-    quality_wid = get_default_workspace_id(db)
+    quality_wid = opp.workspace_id or get_default_workspace_id(db)
     quality_profile = _upsert_agent_profile(
         db, name="quality_agent", display_name="Quality Agent",
         role="审查客户回复草稿中的风险",

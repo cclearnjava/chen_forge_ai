@@ -681,8 +681,9 @@ def get_approved_proposal(
     db: Session = Depends(get_db),
     _admin: str = Depends(get_admin_email),
 ):
-    get_scoped_or_404(db, Opportunity, opportunity_id, label="Opportunity")
-    data = find_latest_approved_proposal(db, opportunity_id)
+    opp = get_scoped_or_404(db, Opportunity, opportunity_id, label="Opportunity")
+    wid = opp.workspace_id or get_default_workspace_id(db)
+    data = find_latest_approved_proposal(db, opportunity_id, wid)
     if not data:
         raise HTTPException(status_code=404, detail="No approved proposal found for this opportunity")
     return data
@@ -694,8 +695,9 @@ def download_approved_proposal_pdf(
     db: Session = Depends(get_db),
     admin: str = Depends(get_admin_email),
 ):
-    get_scoped_or_404(db, Opportunity, opportunity_id, label="Opportunity")
-    data = find_latest_approved_proposal(db, opportunity_id)
+    opp = get_scoped_or_404(db, Opportunity, opportunity_id, label="Opportunity")
+    wid = opp.workspace_id or get_default_workspace_id(db)
+    data = find_latest_approved_proposal(db, opportunity_id, wid)
     if not data:
         raise HTTPException(status_code=404, detail="No approved proposal found for this opportunity")
 
@@ -738,8 +740,10 @@ def create_proposal_delivery_job(
     db: Session = Depends(get_db),
     admin: str = Depends(get_admin_email),
 ):
+    opp = get_scoped_or_404(db, Opportunity, opportunity_id, label="Opportunity")
+    wid = opp.workspace_id or get_default_workspace_id(db)
     # Find latest approved proposal
-    data = find_latest_approved_proposal(db, opportunity_id)
+    data = find_latest_approved_proposal(db, opportunity_id, wid)
     if not data:
         raise HTTPException(status_code=404, detail="No approved proposal found for this opportunity")
 
@@ -835,7 +839,9 @@ def record_proposal_feedback(
         raise HTTPException(status_code=422, detail="Opportunity has no linked conversation")
 
     # Check latest approved proposal is sent
-    proposal_data = find_latest_approved_proposal(db, opportunity_id)
+    opp = get_scoped_or_404(db, Opportunity, opportunity_id, label="Opportunity")
+    wid = opp.workspace_id or get_default_workspace_id(db)
+    proposal_data = find_latest_approved_proposal(db, opportunity_id, wid)
     if not proposal_data:
         raise HTTPException(status_code=422, detail="No approved proposal found")
     sent_job = (
@@ -979,9 +985,10 @@ def get_approved_quote_sow(
     db: Session = Depends(get_db),
     _admin: str = Depends(get_admin_email),
 ):
-    get_scoped_or_404(db, Opportunity, opportunity_id, label="Opportunity")
+    opp = get_scoped_or_404(db, Opportunity, opportunity_id, label="Opportunity")
+    wid = opp.workspace_id or get_default_workspace_id(db)
     try:
-        data = find_latest_approved_quote_sow(db, opportunity_id)
+        data = find_latest_approved_quote_sow(db, opportunity_id, wid)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     if not data:
@@ -997,9 +1004,10 @@ def create_quote_sow_delivery_job(
     db: Session = Depends(get_db),
     admin: str = Depends(get_admin_email),
 ):
-    get_scoped_or_404(db, Opportunity, opportunity_id, label="Opportunity")
+    opp = get_scoped_or_404(db, Opportunity, opportunity_id, label="Opportunity")
+    wid = opp.workspace_id or get_default_workspace_id(db)
     try:
-        data = find_latest_approved_quote_sow(db, opportunity_id)
+        data = find_latest_approved_quote_sow(db, opportunity_id, wid)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     if not data:

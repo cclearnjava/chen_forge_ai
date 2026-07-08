@@ -47,7 +47,7 @@ def run_quote_sow_workflow(db: Session, opportunity_id: str) -> dict:
     opp = ctx["opportunity"]
     lead_id = ctx["lead_id"]
 
-    wid = get_default_workspace_id(db)
+    wid = opp.workspace_id or get_default_workspace_id(db)
     profile = _upsert_profile(
         db, name="quote_sow_agent", display_name="Quote / SOW Agent",
         role="基于已批准 Proposal 和客户反馈生成报价、SOW 和商业风险审查",

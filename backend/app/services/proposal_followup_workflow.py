@@ -50,7 +50,7 @@ def run_proposal_followup_workflow(db: Session, opportunity_id: str) -> dict:
     opp = ctx["opportunity"]
     lead_id = ctx["lead_id"]
 
-    wid = get_default_workspace_id(db)
+    wid = opp.workspace_id or get_default_workspace_id(db)
     profile = _upsert_agent_profile(
         db, name="proposal_followup_agent", display_name="Proposal Follow-up Agent",
         role="基于已发送 Proposal 和客户反馈生成跟进回复、异议分析和下一步建议",

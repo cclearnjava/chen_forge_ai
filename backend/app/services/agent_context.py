@@ -87,7 +87,7 @@ def build_proposal_followup_context(db: Session, opportunity_id: str) -> dict:
     # Latest approved proposal
     approved = ctx.get("customer_reply_draft")  # reuse proposal context — actually need approved proposal
     from app.services.approved_proposal import find_latest_approved_proposal
-    proposal_data = find_latest_approved_proposal(db, opportunity_id)
+    proposal_data = find_latest_approved_proposal(db, opportunity_id, ctx["opportunity"].workspace_id or "")
     if not proposal_data:
         raise ValueError("No approved proposal found")
 

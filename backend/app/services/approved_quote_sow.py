@@ -1,11 +1,14 @@
-"""Find the latest approved quote_draft and sibling sow_draft for an Opportunity."""
+"""Find the latest approved quote_draft and sibling sow_draft — workspace-scoped."""
 
 from sqlalchemy.orm import Session
 from app.models import Artifact, ArtifactType, Decision, DecisionStatus
 
 
-def find_latest_approved_quote_sow(db: Session, opportunity_id: str) -> dict | None:
-    """Return DTO with latest approved quote_draft + same-AgentRun sow_draft, or None."""
+def find_latest_approved_quote_sow(db: Session, opportunity_id: str, workspace_id: str) -> dict | None:
+    """Return DTO with latest approved quote_draft + same-AgentRun sow_draft, or None.
+
+    Requires workspace_id — filters quote, sibling SOW, and ensures same workspace.
+    """
     result = (
         db.query(Decision, Artifact)
         .join(Artifact, Artifact.id == Decision.artifact_id)
@@ -14,6 +17,7 @@ def find_latest_approved_quote_sow(db: Session, opportunity_id: str) -> dict | N
             Decision.status == DecisionStatus.approved,
             Decision.resolved_at.isnot(None),
             Artifact.type == ArtifactType.quote_draft,
+            (Artifact.workspace_id == workspace_id) | (Artifact.workspace_id.is_(None)),
         )
         .order_by(Decision.resolved_at.desc())
         .first()
@@ -28,6 +32,7 @@ def find_latest_approved_quote_sow(db: Session, opportunity_id: str) -> dict | N
             Artifact.agent_run_id == quote.agent_run_id,
             Artifact.opportunity_id == opportunity_id,
             Artifact.type == ArtifactType.sow_draft,
+            (Artifact.workspace_id == workspace_id) | (Artifact.workspace_id.is_(None)),
         )
         .first()
     )

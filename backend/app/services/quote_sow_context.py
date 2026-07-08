@@ -11,7 +11,7 @@ def build_quote_sow_context(db: Session, opportunity_id: str) -> dict:
     ctx = build_opportunity_agent_context(db, opportunity_id)
 
     # Latest approved proposal
-    proposal = find_latest_approved_proposal(db, opportunity_id)
+    proposal = find_latest_approved_proposal(db, opportunity_id, ctx["opportunity"].workspace_id or "")
     if not proposal:
         raise ValueError("No approved proposal found")
 

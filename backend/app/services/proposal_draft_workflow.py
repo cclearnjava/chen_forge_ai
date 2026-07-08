@@ -31,7 +31,7 @@ def run_proposal_draft_workflow(db: Session, opportunity_id: str) -> dict:
     opp = ctx["opportunity"]
     lead_id = ctx["lead_id"]
 
-    wid = get_default_workspace_id(db)
+    wid = opp.workspace_id or get_default_workspace_id(db)
     profile = _upsert_agent_profile(
         db, name="proposal_agent", display_name="Proposal Agent",
         role="基于客户对话和商机上下文生成 PoC 方案草案",
