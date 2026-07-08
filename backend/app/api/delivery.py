@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db import get_db
 from app.services.workspace import get_default_workspace_id
+from app.services.events import record_event
 from app.services.workspace_guard import get_scoped_or_404
 from app.auth.middleware import get_admin_email
 from app.models import (
@@ -182,5 +183,9 @@ def mark_delivery_job_sent(
             },
         ))
 
+    record_event(db, workspace_id=job.workspace_id, type="delivery_job.sent", source="delivery_api",
+                  subject_type="delivery_job", subject_id=job.id,
+                  title=f"已发送: {job.subject}",
+                  summary=job.body_markdown[:100] if job.body_markdown else None)
     db.commit()
     return {"delivery_job": _job_to_dict(job)}
