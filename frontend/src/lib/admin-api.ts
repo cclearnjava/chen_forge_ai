@@ -496,37 +496,56 @@ export async function seedDefaultServices(): Promise<{ count: number }> {
 }
 
 
-export async function getServicePackages(serviceId: string): Promise<{ items: Record<string, unknown>[] }> {
+
+export interface ServicePackageOut {
+  id: string; service_id: string; workspace_id?: string | null; name: string;
+  description: string | null; price_min: number | null; price_max: number | null;
+  currency: string; duration: string | null; sort_order: number; is_active: boolean;
+  created_at: string; updated_at: string;
+}
+export interface ServiceDeliverableOut {
+  id: string; service_id: string; workspace_id?: string | null; package_id: string | null;
+  title: string; description: string | null; format: string | null; sort_order: number;
+  created_at: string; updated_at: string;
+}
+export interface ServiceRiskRuleOut {
+  id: string; service_id: string; workspace_id?: string | null; title: string;
+  description: string | null; severity: string; disqualifies: boolean;
+  suggested_response: string | null; sort_order: number;
+  created_at: string; updated_at: string;
+}
+
+export async function getServicePackages(serviceId: string): Promise<{ items: ServicePackageOut[] }> {
   return api(`/admin/services/${serviceId}/packages`);
 }
-export async function getServiceDeliverables(serviceId: string): Promise<{ items: Record<string, unknown>[] }> {
+export async function getServiceDeliverables(serviceId: string): Promise<{ items: ServiceDeliverableOut[] }> {
   return api(`/admin/services/${serviceId}/deliverables`);
 }
-export async function getServiceRiskRules(serviceId: string): Promise<{ items: Record<string, unknown>[] }> {
+export async function getServiceRiskRules(serviceId: string): Promise<{ items: ServiceRiskRuleOut[] }> {
   return api(`/admin/services/${serviceId}/risk-rules`);
 }
-export async function createServicePackage(serviceId: string, data: Record<string, unknown>): Promise<Record<string, unknown>> {
+export async function createServicePackage(serviceId: string, data: Record<string, unknown>): Promise<ServicePackageOut> {
   return api(`/admin/services/${serviceId}/packages`, { method: "POST", body: JSON.stringify(data) });
 }
-export async function updateServicePackage(serviceId: string, pkgId: string, data: Record<string, unknown>): Promise<Record<string, unknown>> {
+export async function updateServicePackage(serviceId: string, pkgId: string, data: Record<string, unknown>): Promise<ServicePackageOut> {
   return api(`/admin/services/${serviceId}/packages/${pkgId}`, { method: "PATCH", body: JSON.stringify(data) });
 }
 export async function deleteServicePackage(serviceId: string, pkgId: string): Promise<void> {
   await api(`/admin/services/${serviceId}/packages/${pkgId}`, { method: "DELETE" });
 }
-export async function createServiceDeliverable(serviceId: string, data: Record<string, unknown>): Promise<Record<string, unknown>> {
+export async function createServiceDeliverable(serviceId: string, data: Record<string, unknown>): Promise<ServiceDeliverableOut> {
   return api(`/admin/services/${serviceId}/deliverables`, { method: "POST", body: JSON.stringify(data) });
 }
-export async function updateServiceDeliverable(serviceId: string, delId: string, data: Record<string, unknown>): Promise<Record<string, unknown>> {
+export async function updateServiceDeliverable(serviceId: string, delId: string, data: Record<string, unknown>): Promise<ServiceDeliverableOut> {
   return api(`/admin/services/${serviceId}/deliverables/${delId}`, { method: "PATCH", body: JSON.stringify(data) });
 }
 export async function deleteServiceDeliverable(serviceId: string, delId: string): Promise<void> {
   await api(`/admin/services/${serviceId}/deliverables/${delId}`, { method: "DELETE" });
 }
-export async function createServiceRiskRule(serviceId: string, data: Record<string, unknown>): Promise<Record<string, unknown>> {
+export async function createServiceRiskRule(serviceId: string, data: Record<string, unknown>): Promise<ServiceRiskRuleOut> {
   return api(`/admin/services/${serviceId}/risk-rules`, { method: "POST", body: JSON.stringify(data) });
 }
-export async function updateServiceRiskRule(serviceId: string, ruleId: string, data: Record<string, unknown>): Promise<Record<string, unknown>> {
+export async function updateServiceRiskRule(serviceId: string, ruleId: string, data: Record<string, unknown>): Promise<ServiceRiskRuleOut> {
   return api(`/admin/services/${serviceId}/risk-rules/${ruleId}`, { method: "PATCH", body: JSON.stringify(data) });
 }
 export async function deleteServiceRiskRule(serviceId: string, ruleId: string): Promise<void> {

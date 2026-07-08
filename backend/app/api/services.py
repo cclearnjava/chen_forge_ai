@@ -127,25 +127,36 @@ def seed_defaults(db: Session = Depends(get_db)):
     return {"services": [_svc_to_dict(s) for s in services], "count": len(services)}
 
 
+
+def _pkg_to_dict(p) -> dict:
+    return {"id": p.id, "service_id": p.service_id, "workspace_id": p.workspace_id, "name": p.name, "description": p.description, "price_min": p.price_min, "price_max": p.price_max, "currency": p.currency, "duration": p.duration, "sort_order": p.sort_order, "is_active": p.is_active, "created_at": p.created_at.isoformat() if p.created_at else None, "updated_at": p.updated_at.isoformat() if p.updated_at else None}
+
+def _del_to_dict(d) -> dict:
+    return {"id": d.id, "service_id": d.service_id, "workspace_id": d.workspace_id, "package_id": d.package_id, "title": d.title, "description": d.description, "format": d.format, "sort_order": d.sort_order, "created_at": d.created_at.isoformat() if d.created_at else None, "updated_at": d.updated_at.isoformat() if d.updated_at else None}
+
+def _rule_to_dict(r) -> dict:
+    return {"id": r.id, "service_id": r.service_id, "workspace_id": r.workspace_id, "title": r.title, "description": r.description, "severity": r.severity.value if hasattr(r.severity, "value") else r.severity, "disqualifies": r.disqualifies, "suggested_response": r.suggested_response, "sort_order": r.sort_order, "created_at": r.created_at.isoformat() if r.created_at else None, "updated_at": r.updated_at.isoformat() if r.updated_at else None}
+
+
 # ── Sub-resources: packages, deliverables, risk_rules ──
 
 @router.get("/{service_id}/packages")
 def list_packages(service_id: str, db: Session = Depends(get_db), _admin: str = Depends(get_admin_email)):
     wid = get_current_workspace_id(db)
     items = db.query(ServicePackage).filter(ServicePackage.service_id == service_id, ServicePackage.workspace_id == wid).order_by(ServicePackage.sort_order).all()
-    return {"items": [{"id": p.id, "name": p.name, "description": p.description, "price_min": p.price_min, "price_max": p.price_max, "currency": p.currency, "duration": p.duration, "is_active": p.is_active, "sort_order": p.sort_order} for p in items]}
+    return {"items": [_pkg_to_dict(p) for p in items]}
 
 @router.get("/{service_id}/deliverables")
 def list_deliverables(service_id: str, db: Session = Depends(get_db), _admin: str = Depends(get_admin_email)):
     wid = get_current_workspace_id(db)
     items = db.query(ServiceDeliverable).filter(ServiceDeliverable.service_id == service_id, ServiceDeliverable.workspace_id == wid).order_by(ServiceDeliverable.sort_order).all()
-    return {"items": [{"id": d.id, "title": d.title, "description": d.description, "format": d.format, "package_id": d.package_id, "sort_order": d.sort_order} for d in items]}
+    return {"items": [_del_to_dict(d) for d in items]}
 
 @router.get("/{service_id}/risk-rules")
 def list_risk_rules(service_id: str, db: Session = Depends(get_db), _admin: str = Depends(get_admin_email)):
     wid = get_current_workspace_id(db)
     items = db.query(ServiceRiskRule).filter(ServiceRiskRule.service_id == service_id, ServiceRiskRule.workspace_id == wid).order_by(ServiceRiskRule.sort_order).all()
-    return {"items": [{"id": r.id, "title": r.title, "description": r.description, "severity": r.severity.value if hasattr(r.severity, "value") else r.severity, "disqualifies": r.disqualifies, "suggested_response": r.suggested_response, "sort_order": r.sort_order} for r in items]}
+    return {"items": [_rule_to_dict(r) for r in items]}
 
 
 # ── Sub-resource mutations ──
@@ -154,25 +165,30 @@ def list_risk_rules(service_id: str, db: Session = Depends(get_db), _admin: str 
 def create_package(service_id: str, req: dict, db: Session = Depends(get_db)):
     wid = get_current_workspace_id(db)
     if not get_service_or_none(db, wid, service_id): raise HTTPException(status_code=404, detail="Service not found")
+    if not req.get("name"): raise HTTPException(status_code=422, detail="Package name is required")
     pkg = ServicePackage(workspace_id=wid, service_id=service_id, name=req["name"], description=req.get("description"), price_min=req.get("price_min"), price_max=req.get("price_max"), currency=req.get("currency", "CNY"), duration=req.get("duration"), sort_order=req.get("sort_order", 0))
     db.add(pkg); db.commit()
-    return {"id": pkg.id, "name": pkg.name}
+    return _pkg_to_dict(pkg)
 
 @router.post("/{service_id}/deliverables", status_code=201)
 def create_deliverable(service_id: str, req: dict, db: Session = Depends(get_db)):
     wid = get_current_workspace_id(db)
     if not get_service_or_none(db, wid, service_id): raise HTTPException(status_code=404, detail="Service not found")
+    if not req.get("title"): raise HTTPException(status_code=422, detail="Deliverable title is required")
     d = ServiceDeliverable(workspace_id=wid, service_id=service_id, package_id=req.get("package_id"), title=req["title"], description=req.get("description"), format=req.get("format"), sort_order=req.get("sort_order", 0))
     db.add(d); db.commit()
-    return {"id": d.id, "title": d.title}
+    return _del_to_dict(d)
 
 @router.post("/{service_id}/risk-rules", status_code=201)
 def create_risk_rule(service_id: str, req: dict, db: Session = Depends(get_db)):
     wid = get_current_workspace_id(db)
     if not get_service_or_none(db, wid, service_id): raise HTTPException(status_code=404, detail="Service not found")
-    r = ServiceRiskRule(workspace_id=wid, service_id=service_id, title=req["title"], description=req.get("description"), severity=req.get("severity", "medium"), disqualifies=req.get("disqualifies", False), suggested_response=req.get("suggested_response"), sort_order=req.get("sort_order", 0))
+    if not req.get("title"): raise HTTPException(status_code=422, detail="Risk rule title is required")
+    sev = req.get("severity", "medium")
+    if sev not in ("low", "medium", "high", "critical"): raise HTTPException(status_code=422, detail=f"Invalid severity: {sev}")
+    r = ServiceRiskRule(workspace_id=wid, service_id=service_id, title=req["title"], description=req.get("description"), severity=sev, disqualifies=req.get("disqualifies", False), suggested_response=req.get("suggested_response"), sort_order=req.get("sort_order", 0))
     db.add(r); db.commit()
-    return {"id": r.id, "title": r.title}
+    return _rule_to_dict(r)
 
 @router.patch("/{service_id}/packages/{package_id}")
 def update_package(service_id: str, package_id: str, req: dict, db: Session = Depends(get_db)):
@@ -181,7 +197,7 @@ def update_package(service_id: str, package_id: str, req: dict, db: Session = De
     if not pkg: raise HTTPException(status_code=404, detail="Package not found")
     for k in ["name", "description", "price_min", "price_max", "currency", "duration", "sort_order"]:
         if k in req: setattr(pkg, k, req[k])
-    db.commit(); return {"id": pkg.id, "name": pkg.name}
+    db.commit(); return _pkg_to_dict(pkg)
 
 @router.patch("/{service_id}/deliverables/{deliverable_id}")
 def update_deliverable(service_id: str, deliverable_id: str, req: dict, db: Session = Depends(get_db)):
@@ -190,7 +206,7 @@ def update_deliverable(service_id: str, deliverable_id: str, req: dict, db: Sess
     if not d: raise HTTPException(status_code=404, detail="Deliverable not found")
     for k in ["title", "description", "format", "sort_order"]:
         if k in req: setattr(d, k, req[k])
-    db.commit(); return {"id": d.id, "title": d.title}
+    db.commit(); return _del_to_dict(d)
 
 @router.patch("/{service_id}/risk-rules/{rule_id}")
 def update_risk_rule(service_id: str, rule_id: str, req: dict, db: Session = Depends(get_db)):
@@ -199,7 +215,7 @@ def update_risk_rule(service_id: str, rule_id: str, req: dict, db: Session = Dep
     if not r: raise HTTPException(status_code=404, detail="Risk rule not found")
     for k in ["title", "description", "severity", "disqualifies", "suggested_response", "sort_order"]:
         if k in req: setattr(r, k, req[k])
-    db.commit(); return {"id": r.id, "title": r.title}
+    db.commit(); return _rule_to_dict(r)
 
 @router.delete("/{service_id}/packages/{package_id}")
 def delete_package(service_id: str, package_id: str, db: Session = Depends(get_db)):
