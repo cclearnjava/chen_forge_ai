@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import AdminShell from "@/components/admin/admin-shell";
-import { createServiceDeliverable, createServicePackage, createServiceRiskRule, deleteServiceDeliverable, deleteServicePackage, deleteServiceRiskRule, getNotificationSummary, getService, getServiceDeliverables, getServicePackages, getServiceRiskRules, updateService, activateService, deactivateService, archiveService, type ServiceOut } from "@/lib/admin-api";
+import { createServiceDeliverable, createServicePackage, createServiceRiskRule, deleteServiceDeliverable, deleteServicePackage, deleteServiceRiskRule, getNotificationSummary, getService, getServiceDeliverables, getServicePackages, getServiceRiskRules, updateService, updateServiceDeliverable, updateServicePackage, updateServiceRiskRule, activateService, deactivateService, archiveService, type ServiceOut } from "@/lib/admin-api";
 
 export default function ServiceDetailPage() {
   const { serviceId } = useParams();
@@ -22,6 +22,8 @@ export default function ServiceDetailPage() {
   const [newPkg, setNewPkg] = useState("");
   const [newDel, setNewDel] = useState("");
   const [newRule, setNewRule] = useState("");
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editVal, setEditVal] = useState("");
 
   const load = useCallback(() => {
     setLoading(true);
@@ -47,6 +49,8 @@ export default function ServiceDetailPage() {
   const removePackage = async (pid: string) => { await deleteServicePackage(id, pid); setPackages(packages.filter(p => p.id !== pid)); };
   const removeDeliverable = async (did: string) => { await deleteServiceDeliverable(id, did); setDeliverables(deliverables.filter(d => d.id !== did)); };
   const removeRiskRule = async (rid: string) => { await deleteServiceRiskRule(id, rid); setRiskRules(riskRules.filter(r => r.id !== rid)); };
+  const startEdit = (eid: string, val: string) => { setEditId(eid); setEditVal(val); };
+  const saveEdit = async (type: string, eid: string) => { if (!editVal.trim()) return; if (type === "pkg") { await updateServicePackage(id, eid, { name: editVal }); setPackages((await getServicePackages(id)).items); } else if (type === "del") { await updateServiceDeliverable(id, eid, { title: editVal }); setDeliverables((await getServiceDeliverables(id)).items); } else { await updateServiceRiskRule(id, eid, { title: editVal }); setRiskRules((await getServiceRiskRules(id)).items); } setEditId(null); };
 
   const handleStatus = async (action: "activate" | "deactivate" | "archive") => {
     try {
@@ -115,7 +119,7 @@ export default function ServiceDetailPage() {
             <input value={newPkg} onChange={(e) => setNewPkg(e.target.value)} placeholder="New package name" style={{flex:1}} />
             <button className="button primary small" onClick={addPackage}>Add</button>
           </div>
-          {packages.map((p: Record<string,unknown>) => <div key={String(p.id)} className="notification-item"><strong>{String(p.name)}</strong><button className="button ghost small" onClick={() => removePackage(String(p.id))} style={{marginLeft:"auto"}}>Del</button></div>)}
+          {packages.map((p: Record<string,unknown>) => <div key={String(p.id)} className="notification-item">{editId === String(p.id) ? <span style={{display:"flex",gap:"0.5rem",flex:1}}><input value={editVal} onChange={(e) => setEditVal(e.target.value)} style={{flex:1}} /><button className="button primary small" onClick={() => saveEdit("pkg", String(p.id))}>Save</button><button className="button ghost small" onClick={() => setEditId(null)}>Cancel</button></span> : <><strong>{String(p.name)}</strong><span style={{marginLeft:"auto",display:"flex",gap:"0.25rem"}}><button className="button ghost small" onClick={() => startEdit(String(p.id), String(p.name))}>Edit</button><button className="button ghost small" onClick={() => removePackage(String(p.id))}>Del</button></span></>}</div>)}
         </article>
         <article>
           <div className="panel-heading"><h2>Deliverables</h2></div>
@@ -123,7 +127,7 @@ export default function ServiceDetailPage() {
             <input value={newDel} onChange={(e) => setNewDel(e.target.value)} placeholder="New deliverable title" style={{flex:1}} />
             <button className="button primary small" onClick={addDeliverable}>Add</button>
           </div>
-          {deliverables.map((d: Record<string,unknown>) => <div key={String(d.id)} className="notification-item"><strong>{String(d.title)}</strong><button className="button ghost small" onClick={() => removeDeliverable(String(d.id))} style={{marginLeft:"auto"}}>Del</button></div>)}
+          {deliverables.map((d: Record<string,unknown>) => <div key={String(d.id)} className="notification-item">{editId === String(d.id) ? <span style={{display:"flex",gap:"0.5rem",flex:1}}><input value={editVal} onChange={(e) => setEditVal(e.target.value)} style={{flex:1}} /><button className="button primary small" onClick={() => saveEdit("del", String(d.id))}>Save</button><button className="button ghost small" onClick={() => setEditId(null)}>Cancel</button></span> : <><strong>{String(d.title)}</strong><span style={{marginLeft:"auto",display:"flex",gap:"0.25rem"}}><button className="button ghost small" onClick={() => startEdit(String(d.id), String(d.title))}>Edit</button><button className="button ghost small" onClick={() => removeDeliverable(String(d.id))}>Del</button></span></>}</div>)}
         </article>
         <article>
           <div className="panel-heading"><h2>Risk Rules</h2></div>
@@ -131,7 +135,7 @@ export default function ServiceDetailPage() {
             <input value={newRule} onChange={(e) => setNewRule(e.target.value)} placeholder="New risk rule title" style={{flex:1}} />
             <button className="button primary small" onClick={addRiskRule}>Add</button>
           </div>
-          {riskRules.map((r: Record<string,unknown>) => <div key={String(r.id)} className="notification-item"><strong>{String(r.title)}</strong> · <small>{String(r.severity || "")}{r.disqualifies ? " · disqualifies" : ""}</small><button className="button ghost small" onClick={() => removeRiskRule(String(r.id))} style={{marginLeft:"auto"}}>Del</button></div>)}
+          {riskRules.map((r: Record<string,unknown>) => <div key={String(r.id)} className="notification-item">{editId === String(r.id) ? <span style={{display:"flex",gap:"0.5rem",flex:1}}><input value={editVal} onChange={(e) => setEditVal(e.target.value)} style={{flex:1}} /><button className="button primary small" onClick={() => saveEdit("rule", String(r.id))}>Save</button><button className="button ghost small" onClick={() => setEditId(null)}>Cancel</button></span> : <><strong>{String(r.title)}</strong> · <small>{String(r.severity || "")}{r.disqualifies ? " · disqualifies" : ""}</small><span style={{marginLeft:"auto",display:"flex",gap:"0.25rem"}}><button className="button ghost small" onClick={() => startEdit(String(r.id), String(r.title))}>Edit</button><button className="button ghost small" onClick={() => removeRiskRule(String(r.id))}>Del</button></span></>}</div>)}
         </article>
       </section>
 
