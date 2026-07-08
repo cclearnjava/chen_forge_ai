@@ -60,6 +60,7 @@ def get_customer_detail(
     db: Session = Depends(get_db),
     _admin: str = Depends(get_admin_email),
 ):
+    wid = get_default_workspace_id(db)
     customer = (
         db.query(Customer)
         .options(
@@ -68,6 +69,7 @@ def get_customer_detail(
             joinedload(Customer.conversations),
         )
         .filter(Customer.id == customer_id)
+        .filter((Customer.workspace_id == wid) | (Customer.workspace_id.is_(None)))
         .first()
     )
     if not customer:
