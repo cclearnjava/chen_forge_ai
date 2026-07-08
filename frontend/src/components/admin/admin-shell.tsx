@@ -17,6 +17,7 @@ export default function AdminShell({
   subtitle,
   children,
   workspaceName,
+  unreadCount,
 }: {
   active: string;
   eyebrow: string;
@@ -24,6 +25,7 @@ export default function AdminShell({
   subtitle: string;
   children: ReactNode;
   workspaceName?: string;
+  unreadCount?: number;
 }) {
   return (
     <main className="admin-shell">
@@ -57,7 +59,7 @@ export default function AdminShell({
           </div>
           <div className="admin-topbar-status">
             <span>{workspaceName || "Admin"}</span>
-            <strong>4 待跟进</strong>
+            <strong>{unreadCount != null ? (unreadCount > 0 ? `${unreadCount} 待处理` : "无待处理通知") : "通知状态不可用"}</strong>
           </div>
         </header>
         {children}

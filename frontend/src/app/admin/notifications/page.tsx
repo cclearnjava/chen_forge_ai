@@ -8,6 +8,13 @@ import { archiveNotification, getNotifications, getNotificationSummary, markAllN
 const statusFilters = ["all", "unread", "read", "archived"] as const;
 const kindFilters = ["all", "approval_required", "delivery_action_required", "lead_created", "customer_reply_recorded", "delivery_sent", "proposal_ready", "quote_sow_ready"] as const;
 
+const kindLabels: Record<string, string> = {
+  lead_created: "新线索", approval_required: "待审批", delivery_action_required: "待发送",
+  delivery_sent: "已发送", delivery_failed: "发送失败", customer_reply_recorded: "客户回复",
+  proposal_ready: "Proposal 就绪", quote_sow_ready: "Quote/SOW 就绪", system_notice: "系统通知",
+};
+const severityLabels: Record<string, string> = { info: "信息", success: "成功", warning: "需要处理", critical: "紧急" };
+
 export default function NotificationsPage() {
   const [items, setItems] = useState<NotificationOut[]>([]);
   const [total, setTotal] = useState(0);
@@ -49,7 +56,7 @@ export default function NotificationsPage() {
           {statusFilters.map((s) => <button key={s} className={s === status ? "active" : ""} onClick={() => setStatus(s)}>{s === "all" ? "All" : s}</button>)}
         </div>
         <div className="stage-filter">
-          {kindFilters.map((k) => <button key={k} className={k === kind ? "active" : ""} onClick={() => setKind(k)}>{k === "all" ? "All Types" : k}</button>)}
+          {kindFilters.map((k) => <button key={k} className={k === kind ? "active" : ""} onClick={() => setKind(k)}>{k === "all" ? "All Types" : (kindLabels[k] || k)}</button>)}
         </div>
         <button className="button ghost" onClick={handleMarkAllRead}>Mark All Read</button>
       </section>
@@ -61,10 +68,10 @@ export default function NotificationsPage() {
           items.map((n) => (
             <div key={n.id} className={`notification-item ${n.status}`}>
               <div className="notif-main">
-                <span className={`severity-${n.severity}`}>{n.severity}</span>
+                <span className={`severity-${n.severity}`}>{severityLabels[n.severity] || n.severity}</span>
                 <strong>{n.title}</strong>
                 {n.body && <p>{n.body}</p>}
-                <small>{n.kind} · {new Date(n.created_at).toLocaleString()}</small>
+                <small>{kindLabels[n.kind] || n.kind} · {severityLabels[n.severity] || n.severity} · {new Date(n.created_at).toLocaleString()}</small>
               </div>
               <div className="notif-actions">
                 {n.target_url && <Link href={n.target_url} className="button ghost small">Open</Link>}

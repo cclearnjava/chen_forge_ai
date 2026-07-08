@@ -3,16 +3,18 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import AdminShell from "@/components/admin/admin-shell";
-import { getCurrentWorkspace, getOpportunities, type OpportunityListItem } from "@/lib/admin-api";
+import { getCurrentWorkspace, getNotificationSummary, getOpportunities, type OpportunityListItem } from "@/lib/admin-api";
 
 export default function AdminPage() {
   const [items, setItems] = useState<OpportunityListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [wsName, setWsName] = useState<string | undefined>();
+  const [unreadCount, setUnreadCount] = useState<number | undefined>();
 
   useEffect(() => {
     getCurrentWorkspace().then((ws) => setWsName(ws.name)).catch(() => {});
+    getNotificationSummary().then((s) => setUnreadCount(s.unread_count)).catch(() => {});
     getOpportunities()
       .then((res) => { setItems(res.items); setTotal(res.total); })
       .catch((err) => setError(err.message));
@@ -26,6 +28,7 @@ export default function AdminPage() {
     <AdminShell
       active="cockpit"
       workspaceName={wsName}
+      unreadCount={unreadCount}
       eyebrow="Company Cockpit"
       title="今日经营台"
       subtitle={error ? `API error: ${error}` : `${total} opportunities from API`}
