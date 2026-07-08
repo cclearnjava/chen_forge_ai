@@ -611,3 +611,46 @@ class NotificationDeliveryOut(BaseModel):
 
 class NotificationMarkReadIn(BaseModel):
     notification_ids: list[str] | None = None
+
+# ── Service Catalog ──
+class ServiceCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    slug: str = Field(..., min_length=1, max_length=100)
+    positioning: str | None = None
+    target_customer: str | None = None
+    typical_duration: str | None = None
+    price_min: int | None = None
+    price_max: int | None = None
+    currency: str = "CNY"
+    risk_notes: str | None = None
+
+
+class ServiceUpdate(BaseModel):
+    name: str | None = None
+    positioning: str | None = None
+    target_customer: str | None = None
+    typical_duration: str | None = None
+    price_min: int | None = None
+    price_max: int | None = None
+    currency: str | None = None
+    risk_notes: str | None = None
+
+
+class ServiceOut(BaseModel):
+    id: str; workspace_id: str | None = None
+    name: str; slug: str; status: str
+    positioning: str | None = None; target_customer: str | None = None
+    pain_points_json: dict | None = None; outcomes_json: dict | None = None
+    required_inputs_json: dict | None = None; success_criteria_json: dict | None = None
+    typical_duration: str | None = None
+    price_min: int | None = None; price_max: int | None = None; currency: str = "CNY"
+    sort_order: int = 0; is_featured: bool = False
+    risk_notes: str | None = None
+    created_at: datetime; updated_at: datetime
+    model_config = {"from_attributes": True}
+
+
+class ServiceDetailOut(ServiceOut):
+    packages: list = Field(default_factory=list)
+    deliverables: list = Field(default_factory=list)
+    risk_rules: list = Field(default_factory=list)

@@ -236,6 +236,96 @@ class NotificationDelivery(Base):
 
 
 
+
+class ServiceStatus(str, enum.Enum):
+    draft = "draft"
+    active = "active"
+    inactive = "inactive"
+    archived = "archived"
+
+
+class RiskSeverity(str, enum.Enum):
+    low = "low"
+    medium = "medium"
+    high = "high"
+    critical = "critical"
+
+
+
+
+class Service(Base):
+    __tablename__ = "services"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    workspace_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    slug: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    status: Mapped[ServiceStatus] = mapped_column(SAEnum(ServiceStatus), default=ServiceStatus.draft, nullable=False, index=True)
+    positioning: Mapped[str | None] = mapped_column(Text)
+    target_customer: Mapped[str | None] = mapped_column(Text)
+    pain_points_json: Mapped[dict | None] = mapped_column(JSON)
+    outcomes_json: Mapped[dict | None] = mapped_column(JSON)
+    required_inputs_json: Mapped[dict | None] = mapped_column(JSON)
+    success_criteria_json: Mapped[dict | None] = mapped_column(JSON)
+    typical_duration: Mapped[str | None] = mapped_column(String(100))
+    price_min: Mapped[int | None] = mapped_column(Integer)
+    price_max: Mapped[int | None] = mapped_column(Integer)
+    currency: Mapped[str] = mapped_column(String(10), default="CNY", nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    is_featured: Mapped[bool] = mapped_column(Boolean, default=False)
+    risk_notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+
+
+class ServicePackage(Base):
+    __tablename__ = "service_packages"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    workspace_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True)
+    service_id: Mapped[str] = mapped_column(String(36), ForeignKey("services.id"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    price_min: Mapped[int | None] = mapped_column(Integer)
+    price_max: Mapped[int | None] = mapped_column(Integer)
+    currency: Mapped[str] = mapped_column(String(10), default="CNY", nullable=False)
+    duration: Mapped[str | None] = mapped_column(String(100))
+    deliverables_json: Mapped[dict | None] = mapped_column(JSON)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+
+
+class ServiceDeliverable(Base):
+    __tablename__ = "service_deliverables"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    workspace_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True)
+    service_id: Mapped[str] = mapped_column(String(36), ForeignKey("services.id"), nullable=False, index=True)
+    package_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("service_packages.id"), index=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    format: Mapped[str | None] = mapped_column(String(100))
+    acceptance_criteria_json: Mapped[dict | None] = mapped_column(JSON)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+
+
+class ServiceRiskRule(Base):
+    __tablename__ = "service_risk_rules"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    workspace_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True)
+    service_id: Mapped[str] = mapped_column(String(36), ForeignKey("services.id"), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    severity: Mapped[RiskSeverity] = mapped_column(SAEnum(RiskSeverity), default=RiskSeverity.medium, nullable=False)
+    disqualifies: Mapped[bool] = mapped_column(Boolean, default=False)
+    suggested_response: Mapped[str | None] = mapped_column(Text)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+
+
+
 class Lead(Base):
     __tablename__ = "leads"
 
