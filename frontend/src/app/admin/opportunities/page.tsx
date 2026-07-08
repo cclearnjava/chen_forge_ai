@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import AdminShell from "@/components/admin/admin-shell";
 import OpportunityTable from "@/components/admin/opportunity-table";
-import { getOpportunities, stageLabels, type Stage, type OpportunityListItem } from "@/lib/admin-api";
+import { getCurrentWorkspace, getOpportunities, stageLabels, type Stage, type OpportunityListItem } from "@/lib/admin-api";
 
 const stages: Array<"all" | Stage> = [
   "all", "lead", "qualified", "proposal", "negotiation", "won", "lost", "archived",
@@ -16,7 +16,10 @@ export default function OpportunitiesPage() {
   const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  const [wsName, setWsName] = useState<string | undefined>();
+
   useEffect(() => {
+    getCurrentWorkspace().then((ws) => setWsName(ws.name)).catch(() => {});
     let cancelled = false;
     getOpportunities({ stage: stageFilter === "all" ? undefined : stageFilter, q: search || undefined })
       .then((res) => {
@@ -38,6 +41,7 @@ export default function OpportunitiesPage() {
   return (
     <AdminShell
       active="opportunities"
+      workspaceName={wsName}
       eyebrow="Company Cockpit / Pipeline"
       title="Opportunities"
       subtitle={error ? `API error: ${error}` : `${total} opportunities from API`}
