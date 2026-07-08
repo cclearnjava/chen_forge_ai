@@ -557,7 +557,7 @@ class NotificationEvent(Base):
     channel: Mapped[NotifDeliveryChannel] = mapped_column(SAEnum(NotifDeliveryChannel), nullable=False)
     event_type: Mapped[str] = mapped_column(String(100), nullable=False)
     status: Mapped[NotificationReadStatus] = mapped_column(
-        SAEnum(NotificationReadStatus), default=NotificationStatus.pending, nullable=False
+        SAEnum(NotificationReadStatus), default=NotificationReadStatus.unread, nullable=False
     )
     payload_json: Mapped[dict | None] = mapped_column(JSON)
     error_message: Mapped[str | None] = mapped_column(Text)
