@@ -12,7 +12,7 @@ export default function ServicesPage() {
   const [search, setSearch] = useState("");
   const [seeding, setSeeding] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [unreadCount, setUnreadCount] = useState<number | undefined>();
+  const [unreadCount] = useState<number | undefined>();
 
   const load = () => {
     getServices({ status: status === "all" ? undefined : status, q: search || undefined })
