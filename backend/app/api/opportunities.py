@@ -15,6 +15,7 @@ from app.schemas import (
     ProposalDraftResponseOut,
 )
 from app.services.workspace import get_default_workspace_id
+from app.services.workspace_guard import get_scoped_or_404
 from app.services.approved_proposal import find_latest_approved_proposal
 from app.services.proposal_draft_workflow import run_proposal_draft_workflow
 from app.services.proposal_followup_workflow import run_proposal_followup_workflow
@@ -92,6 +93,8 @@ def get_opportunity_detail(
     db: Session = Depends(get_db),
     _admin: str = Depends(get_admin_email),
 ):
+    opp = get_scoped_or_404(db, Opportunity, opportunity_id, label="Opportunity")
+    # reload with joinedload for detail view
     opp = (
         db.query(Opportunity)
         .options(
@@ -102,8 +105,6 @@ def get_opportunity_detail(
         .filter(Opportunity.id == opportunity_id)
         .first()
     )
-    if not opp:
-        raise HTTPException(status_code=404, detail="Opportunity not found")
 
     messages = []
     if opp.conversation:
@@ -409,9 +410,7 @@ def get_opportunity_cockpit(
     db: Session = Depends(get_db),
     _admin: str = Depends(get_admin_email),
 ):
-    opp = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
-    if not opp:
-        raise HTTPException(status_code=404, detail="Opportunity not found")
+    opp = get_scoped_or_404(db, Opportunity, opportunity_id, label="Opportunity")
 
     # Customer and Contact (fail-soft)
     customer_dict = None

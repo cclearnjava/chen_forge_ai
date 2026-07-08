@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db import get_db
 from app.services.workspace import get_default_workspace_id
+from app.services.workspace_guard import get_scoped_or_404
 from app.auth.middleware import get_admin_email
 from app.models import AuditLog, Conversation, Message, MessageSenderType
 from app.schemas import MessageCreate
@@ -15,9 +16,7 @@ def list_messages(
     db: Session = Depends(get_db),
     _admin: str = Depends(get_admin_email),
 ):
-    conv = db.query(Conversation).filter(Conversation.id == conversation_id).first()
-    if not conv:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+    conv = get_scoped_or_404(db, Conversation, conversation_id, label="Conversation")
 
     messages = (
         db.query(Message)
@@ -38,9 +37,7 @@ def create_message(
     db: Session = Depends(get_db),
     admin: str = Depends(get_admin_email),
 ):
-    conv = db.query(Conversation).filter(Conversation.id == conversation_id).first()
-    if not conv:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+    conv = get_scoped_or_404(db, Conversation, conversation_id, label="Conversation")
 
     try:
         sender_type = MessageSenderType(req.sender_type)

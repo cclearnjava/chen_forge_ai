@@ -2,6 +2,7 @@ from datetime import datetime as dt
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 from app.db import get_db
+from app.services.workspace_guard import get_scoped_or_404
 from app.auth.middleware import get_admin_email
 from app.services.workspace import get_default_workspace_id
 from app.models import (
@@ -152,7 +153,7 @@ def approve_decision(
     db: Session = Depends(get_db),
     admin: str = Depends(get_admin_email),
 ):
-    d = db.query(Decision).filter(Decision.id == decision_id).first()
+    d = get_scoped_or_404(db, Decision, decision_id, label="Decision")
     _guard_waiting(d, decision_id)
 
     artifact = db.query(Artifact).filter(Artifact.id == d.artifact_id).first()
@@ -184,7 +185,7 @@ def defer_decision(
     db: Session = Depends(get_db),
     admin: str = Depends(get_admin_email),
 ):
-    d = db.query(Decision).filter(Decision.id == decision_id).first()
+    d = get_scoped_or_404(db, Decision, decision_id, label="Decision")
     _guard_waiting(d, decision_id)
 
     d.status = DecisionStatus.deferred
@@ -214,7 +215,7 @@ def request_rewrite(
     db: Session = Depends(get_db),
     admin: str = Depends(get_admin_email),
 ):
-    d = db.query(Decision).filter(Decision.id == decision_id).first()
+    d = get_scoped_or_404(db, Decision, decision_id, label="Decision")
     _guard_waiting(d, decision_id)
 
     d.status = DecisionStatus.rewrite_requested

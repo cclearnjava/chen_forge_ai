@@ -84,11 +84,11 @@ class TestWorkspaceMvp:
         client.post("/api/v1/admin/agent-runs/sales-reply", json={"opportunity_id": opp_id}, headers=ADMIN)
         db2 = SessionLocal()
         runs = db2.query(AgentRun).filter(AgentRun.opportunity_id == opp_id).order_by(AgentRun.created_at.desc()).all()
-        assert any(r.workspace_id is not None for r in runs), "At least one recent AgentRun must have workspace_id"
+        assert runs and all(r.workspace_id is not None for r in runs), "All AgentRuns must have workspace_id"
         arts = db2.query(Artifact).filter(Artifact.opportunity_id == opp_id).order_by(Artifact.created_at.desc()).all()
-        assert any(a.workspace_id is not None for a in arts), "At least one recent Artifact must have workspace_id"
+        assert arts and all(a.workspace_id is not None for a in arts), "All Artifacts must have workspace_id"
         decs = db2.query(Decision).filter(Decision.opportunity_id == opp_id).order_by(Decision.created_at.desc()).all()
-        assert any(d.workspace_id is not None for d in decs), "At least one recent Decision must have workspace_id"
+        assert decs and all(d.workspace_id is not None for d in decs), "All Decisions must have workspace_id"
         db2.close()
 
     def test_delivery_mark_sent_records_have_workspace_id(self, client: TestClient):
@@ -146,5 +146,42 @@ class TestWorkspaceMvp:
         cust2_id = cust2.id
         db.close()
         r = client.get(f"/api/v1/admin/customers/{cust2_id}", headers=ADMIN)
+        assert r.status_code == 404
+
+
+    def test_opportunity_detail_returns_404_for_other_workspace(self, client: TestClient):
+        init_db()
+        db = SessionLocal()
+        ws2 = Workspace(slug="other-ws-opp2", name="Other", is_default=False)
+        db.add(ws2); db.commit()
+        opp2 = Opportunity(workspace_id=ws2.id, customer_id="x", title="WS2 Opp", stage="lead")
+        db.add(opp2); db.commit()
+        opp2_id = opp2.id; db.close()
+        r = client.get(f"/api/v1/admin/opportunities/{opp2_id}", headers=ADMIN)
+        assert r.status_code == 404
+
+    def test_conversation_messages_returns_404_for_other_workspace(self, client: TestClient):
+        init_db()
+        db = SessionLocal()
+        ws2 = Workspace(slug="other-ws-conv2", name="Other", is_default=False)
+        db.add(ws2); db.commit()
+        from app.models import Conversation as CV, Customer as CU
+        c2 = CU(workspace_id=ws2.id, name="W2", owner_email="w@t.com")
+        db.add(c2); db.commit()
+        cv2 = CV(workspace_id=ws2.id, customer_id=c2.id, title="W2C", channel="web")
+        db.add(cv2); db.commit()
+        cv2_id = cv2.id; db.close()
+        r = client.get(f"/api/v1/admin/conversations/{cv2_id}/messages", headers=ADMIN)
+        assert r.status_code == 404
+
+    def test_decision_approve_returns_404_for_other_workspace(self, client: TestClient):
+        init_db()
+        db = SessionLocal()
+        ws2 = Workspace(slug="other-ws-dec", name="Other", is_default=False)
+        db.add(ws2); db.commit()
+        dec2 = Decision(workspace_id=ws2.id, question="test", status="waiting")
+        db.add(dec2); db.commit()
+        dec2_id = dec2.id; db.close()
+        r = client.post(f"/api/v1/decisions/{dec2_id}/approve", json={}, headers=ADMIN)
         assert r.status_code == 404
 

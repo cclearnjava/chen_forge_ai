@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db import get_db
 from app.services.workspace import get_default_workspace_id
+from app.services.workspace_guard import get_scoped_or_404
 from app.auth.middleware import get_admin_email
 from app.models import (
     Artifact, ArtifactType, AuditLog, DeliveryChannel, DeliveryJob,
@@ -62,9 +63,7 @@ def send_delivery_job(
     db: Session = Depends(get_db),
     _admin: str = Depends(get_admin_email),
 ):
-    job = db.query(DeliveryJob).filter(DeliveryJob.id == delivery_job_id).first()
-    if not job:
-        raise HTTPException(status_code=404, detail="DeliveryJob not found")
+    job = get_scoped_or_404(db, DeliveryJob, delivery_job_id, label="DeliveryJob")
 
     job.status = DeliveryStatus.sending
     db.commit()
@@ -91,9 +90,7 @@ def get_delivery_job(
     db: Session = Depends(get_db),
     _admin: str = Depends(get_admin_email),
 ):
-    job = db.query(DeliveryJob).filter(DeliveryJob.id == delivery_job_id).first()
-    if not job:
-        raise HTTPException(status_code=404, detail="DeliveryJob not found")
+    job = get_scoped_or_404(db, DeliveryJob, delivery_job_id, label="DeliveryJob")
     return {"delivery_job": _job_to_dict(job)}
 
 
@@ -104,9 +101,7 @@ def mark_delivery_job_sent(
     db: Session = Depends(get_db),
     admin: str = Depends(get_admin_email),
 ):
-    job = db.query(DeliveryJob).filter(DeliveryJob.id == delivery_job_id).first()
-    if not job:
-        raise HTTPException(status_code=404, detail="DeliveryJob not found")
+    job = get_scoped_or_404(db, DeliveryJob, delivery_job_id, label="DeliveryJob")
     if job.status != DeliveryStatus.draft:
         raise HTTPException(status_code=409, detail=f"DeliveryJob is already {job.status.value}")
 
