@@ -185,3 +185,14 @@ class TestWorkspaceMvp:
         r = client.post(f"/api/v1/decisions/{dec2_id}/approve", json={}, headers=ADMIN)
         assert r.status_code == 404
 
+
+    def test_opportunity_update_returns_404_for_other_workspace(self, client: TestClient):
+        init_db()
+        db = SessionLocal()
+        ws2 = Workspace(slug="other-ws-upd", name="Other", is_default=False)
+        db.add(ws2); db.commit()
+        opp2 = Opportunity(workspace_id=ws2.id, customer_id="x", title="WS2 Upd", stage="lead")
+        db.add(opp2); db.commit()
+        opp2_id = opp2.id; db.close()
+        r = client.patch(f"/api/v1/admin/opportunities/{opp2_id}", json={"next_step": "test"}, headers=ADMIN)
+        assert r.status_code == 404

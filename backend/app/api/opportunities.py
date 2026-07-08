@@ -15,7 +15,7 @@ from app.schemas import (
     ProposalDraftResponseOut,
 )
 from app.services.workspace import get_default_workspace_id
-from app.services.workspace_guard import get_scoped_or_404
+from app.services.workspace_guard import get_scoped_or_404, inherit_workspace_id
 from app.services.approved_proposal import find_latest_approved_proposal
 from app.services.proposal_draft_workflow import run_proposal_draft_workflow
 from app.services.proposal_followup_workflow import run_proposal_followup_workflow
@@ -152,9 +152,7 @@ def update_opportunity(
     db: Session = Depends(get_db),
     _admin: str = Depends(get_admin_email),
 ):
-    opp = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
-    if not opp:
-        raise HTTPException(status_code=404, detail="Opportunity not found")
+    opp = get_scoped_or_404(db, Opportunity, opportunity_id, label="Opportunity")
 
     changes = {}
     if req.stage is not None:
@@ -344,9 +342,7 @@ def trigger_sales_reply(
     db: Session = Depends(get_db),
     _admin: str = Depends(get_admin_email),
 ):
-    opp = db.query(Opportunity).filter(Opportunity.id == req.opportunity_id).first()
-    if not opp:
-        raise HTTPException(status_code=404, detail="Opportunity not found")
+    opp = get_scoped_or_404(db, Opportunity, req.opportunity_id, label="Opportunity")
 
     try:
         result = run_sales_reply_workflow(db, req.opportunity_id)
@@ -570,9 +566,7 @@ def record_customer_reply(
     db: Session = Depends(get_db),
     admin: str = Depends(get_admin_email),
 ):
-    opp = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
-    if not opp:
-        raise HTTPException(status_code=404, detail="Opportunity not found")
+    opp = get_scoped_or_404(db, Opportunity, opportunity_id, label="Opportunity")
     if not opp.conversation_id:
         raise HTTPException(status_code=422, detail="Opportunity has no linked conversation")
 
@@ -833,9 +827,7 @@ def record_proposal_feedback(
     db: Session = Depends(get_db),
     admin: str = Depends(get_admin_email),
 ):
-    opp = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
-    if not opp:
-        raise HTTPException(status_code=404, detail="Opportunity not found")
+    opp = get_scoped_or_404(db, Opportunity, opportunity_id, label="Opportunity")
     if not opp.conversation_id:
         raise HTTPException(status_code=422, detail="Opportunity has no linked conversation")
 
@@ -854,7 +846,9 @@ def record_proposal_feedback(
     if not sent_job:
         raise HTTPException(status_code=422, detail="Approved proposal has not been sent yet")
 
+    msg_wid = inherit_workspace_id(opp, db)
     message = Message(
+        workspace_id=msg_wid,
         conversation_id=opp.conversation_id, customer_id=opp.customer_id,
         contact_id=opp.primary_contact_id, sender_type=MessageSenderType.customer,
         sender_label=req.sender_label or "客户 Proposal 反馈",
@@ -866,6 +860,7 @@ def record_proposal_feedback(
     opp.next_step = "Review proposal feedback"
 
     db.add(AuditLog(
+        workspace_id=msg_wid,
         lead_id=opp.lead_id, actor=admin, action="proposal_feedback_recorded",
         details_json={
             "opportunity_id": opp.id, "conversation_id": opp.conversation_id,
@@ -946,9 +941,7 @@ def trigger_quote_sow(
     db: Session = Depends(get_db),
     _admin: str = Depends(get_admin_email),
 ):
-    opp = db.query(Opportunity).filter(Opportunity.id == req.opportunity_id).first()
-    if not opp:
-        raise HTTPException(status_code=404, detail="Opportunity not found")
+    opp = get_scoped_or_404(db, Opportunity, req.opportunity_id, label="Opportunity")
     try:
         result = run_quote_sow_workflow(db, req.opportunity_id)
         db.commit()
