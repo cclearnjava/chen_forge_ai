@@ -791,7 +791,7 @@ def create_proposal_delivery_job(
         channel=DeliveryChannel.manual_copy,
         recipient=recipient,
         subject=f"PoC Proposal: {data.get('opportunity_title', '')}",
-        body_markdown="已准备 PoC Proposal PDF，请下载后通过外部渠道发送给客户。",
+        body_markdown="已准备 PoC Proposal，请在发送前下载 PDF。如 PDF 生成失败，请检查 Playwright/Chromium 环境。下载后通过外部渠道发送给客户。",
         status=DeliveryStatus.draft,
     )
     db.add(job)
