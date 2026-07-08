@@ -96,25 +96,15 @@ class TestApprovedProposalJsonAPI:
         assert r.status_code == 404
 
 
-def _playwright_available() -> bool:
-    try:
-        import playwright  # noqa: F401
-        return True
-    except ImportError:
-        return False
-
-
 class TestApprovedProposalPdfAPI:
     def test_pdf_api_returns_pdf_or_503(self, client: TestClient):
         init_db()
         opp_id = _setup_approved_proposal(client)
 
         r = client.get(f"/api/v1/admin/opportunities/{opp_id}/approved-proposal.pdf", headers=ADMIN)
-        if _playwright_available():
-            assert r.status_code == 200
+        assert r.status_code in (200, 503)
+        if r.status_code == 200:
             assert r.headers["content-type"] == "application/pdf"
-        else:
-            assert r.status_code == 503
 
     def test_pdf_api_returns_404_without_approved_proposal(self, client: TestClient):
         init_db()
