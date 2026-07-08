@@ -69,6 +69,7 @@ def list_opportunities(
     def _to_out(o: Opportunity) -> dict:
         return {
             "id": o.id,
+            "workspace_id": o.workspace_id,
             "customer_id": o.customer_id,
             "lead_id": o.lead_id,
             "title": o.title,
@@ -217,6 +218,7 @@ def _opportunity_to_detail(o: Opportunity, messages: list[Message],
                           decisions: list, audit_logs: list) -> dict:
     result = {
         "id": o.id,
+        "workspace_id": o.workspace_id,
         "customer_id": o.customer_id,
         "lead_id": o.lead_id,
         "primary_contact_id": o.primary_contact_id,

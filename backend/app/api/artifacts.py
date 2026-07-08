@@ -10,7 +10,7 @@ router = APIRouter(tags=["artifacts"])
 
 def _artifact_to_dict(a: Artifact) -> dict:
     return {
-        "id": a.id, "lead_id": a.lead_id, "type": a.type.value,
+        "id": a.id, "workspace_id": a.workspace_id, "lead_id": a.lead_id, "type": a.type.value,
         "title": a.title, "content_markdown": a.content_markdown,
         "content_json": a.content_json, "model": a.model,
         "prompt_version": a.prompt_version, "requires_approval": a.requires_approval,

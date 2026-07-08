@@ -17,7 +17,7 @@ router = APIRouter(prefix="/decisions", tags=["decisions"])
 
 def _decision_to_dict(d: Decision) -> dict:
     return {
-        "id": d.id, "lead_id": d.lead_id, "agent_run_id": d.agent_run_id,
+        "id": d.id, "workspace_id": d.workspace_id, "lead_id": d.lead_id, "agent_run_id": d.agent_run_id,
         "opportunity_id": d.opportunity_id,
         "artifact_id": d.artifact_id, "question": d.question,
         "recommendation": d.recommendation,
