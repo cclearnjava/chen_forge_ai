@@ -410,6 +410,31 @@ export async function getCurrentWorkspace(): Promise<WorkspaceOut> {
   return api("/admin/workspace/current");
 }
 
+export interface NotificationOut {
+  id: string; kind: string; title: string; body: string | null;
+  severity: string; status: string;
+  target_type: string | null; target_id: string | null; target_url: string | null;
+  created_at: string;
+}
+
+export interface NotificationSummaryOut {
+  unread_count: number; critical_count: number;
+  latest: NotificationOut[];
+}
+
+export async function getNotifications(params?: { status?: string; kind?: string; severity?: string }): Promise<{ items: NotificationOut[]; total: number }> {
+  const sp = new URLSearchParams();
+  if (params?.status) sp.set("status", params.status);
+  if (params?.kind) sp.set("kind", params.kind);
+  if (params?.severity) sp.set("severity", params.severity);
+  const qs = sp.toString();
+  return api(`/admin/notifications${qs ? `?${qs}` : ""}`);
+}
+
+export async function getNotificationSummary(): Promise<NotificationSummaryOut> {
+  return api("/admin/notifications/summary");
+}
+
 export const stageLabels: Record<Stage, string> = {
   lead: "Lead",
   qualified: "Qualified",
