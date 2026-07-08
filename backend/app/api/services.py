@@ -8,7 +8,7 @@ from app.services.service_catalog import (
     list_services, set_service_status, update_service,
 )
 from app.services.events import record_event
-from app.models import ServiceStatus
+from app.models import ServiceDeliverable, ServicePackage, ServiceRiskRule, ServiceStatus
 
 router = APIRouter(prefix="/admin/services", tags=["services"])
 
@@ -125,6 +125,27 @@ def seed_defaults(db: Session = Depends(get_db)):
                   subject_type="service", title="Default services seeded")
     db.commit()
     return {"services": [_svc_to_dict(s) for s in services], "count": len(services)}
+
+
+# ── Sub-resources: packages, deliverables, risk_rules ──
+
+@router.get("/{service_id}/packages")
+def list_packages(service_id: str, db: Session = Depends(get_db), _admin: str = Depends(get_admin_email)):
+    wid = get_current_workspace_id(db)
+    items = db.query(ServicePackage).filter(ServicePackage.service_id == service_id, ServicePackage.workspace_id == wid).order_by(ServicePackage.sort_order).all()
+    return {"items": [{"id": p.id, "name": p.name, "description": p.description, "price_min": p.price_min, "price_max": p.price_max, "currency": p.currency, "duration": p.duration, "is_active": p.is_active, "sort_order": p.sort_order} for p in items]}
+
+@router.get("/{service_id}/deliverables")
+def list_deliverables(service_id: str, db: Session = Depends(get_db), _admin: str = Depends(get_admin_email)):
+    wid = get_current_workspace_id(db)
+    items = db.query(ServiceDeliverable).filter(ServiceDeliverable.service_id == service_id, ServiceDeliverable.workspace_id == wid).order_by(ServiceDeliverable.sort_order).all()
+    return {"items": [{"id": d.id, "title": d.title, "description": d.description, "format": d.format, "package_id": d.package_id, "sort_order": d.sort_order} for d in items]}
+
+@router.get("/{service_id}/risk-rules")
+def list_risk_rules(service_id: str, db: Session = Depends(get_db), _admin: str = Depends(get_admin_email)):
+    wid = get_current_workspace_id(db)
+    items = db.query(ServiceRiskRule).filter(ServiceRiskRule.service_id == service_id, ServiceRiskRule.workspace_id == wid).order_by(ServiceRiskRule.sort_order).all()
+    return {"items": [{"id": r.id, "title": r.title, "description": r.description, "severity": r.severity.value if hasattr(r.severity, "value") else r.severity, "disqualifies": r.disqualifies, "suggested_response": r.suggested_response, "sort_order": r.sort_order} for r in items]}
 
 
 # Import at bottom to avoid circular
