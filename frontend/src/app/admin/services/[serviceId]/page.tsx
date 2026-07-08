@@ -23,7 +23,9 @@ export default function ServiceDetailPage() {
       .catch((e) => { setError(e.message); setLoading(false); });
   };
 
-  useEffect(() => { load(); getNotificationSummary().then((s) => setUnreadCount(s.unread_count)).catch(() => {}); }, [id]);
+  useEffect(() => {
+    queueMicrotask(() => { load(); getNotificationSummary().then((s) => setUnreadCount(s.unread_count)).catch(() => {}); });
+  }, [id]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -84,11 +86,11 @@ export default function ServiceDetailPage() {
 
         <article>
           <div className="panel-heading"><h2>Pain Points</h2></div>
-          {svc.pain_points_json ? <ul>{(svc.pain_points_json as Record<string,unknown>).pain_points ? (svc.pain_points_json as any).map((p: string, i: number) => <li key={i}>{p}</li>) : <li>No pain points</li>}</ul> : <p>N/A</p>}
+          {svc.pain_points_json && Array.isArray(svc.pain_points_json) ? <ul>{(svc.pain_points_json as string[]).map((p: string, i: number) => <li key={i}>{p}</li>)}</ul> : <p>N/A</p>}
         </article>
         <article>
           <div className="panel-heading"><h2>Outcomes</h2></div>
-          {svc.outcomes_json ? <ul>{(svc.outcomes_json as any).map ? (svc.outcomes_json as any).map((o: string, i: number) => <li key={i}>{o}</li>) : <li>No outcomes</li>}</ul> : <p>N/A</p>}
+          {svc.outcomes_json && Array.isArray(svc.outcomes_json) ? <ul>{(svc.outcomes_json as string[]).map((o: string, i: number) => <li key={i}>{o}</li>)}</ul> : <p>N/A</p>}
         </article>
       </section>
     </AdminShell>

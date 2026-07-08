@@ -30,7 +30,7 @@ export default function NewServicePage() {
   };
 
   return (
-    <AdminShell active="services" eyebrow="Service Catalog" title="New Service" subtitle="创建新服务">
+    <AdminShell active="services" unreadCount={unreadCount} eyebrow="Service Catalog" title="New Service" subtitle="创建新服务">
       <Link className="button ghost" href="/admin/services">← 返回服务列表</Link>
       {error && <p className="error-msg">{error}</p>}
       <div className="edit-form">
