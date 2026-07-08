@@ -48,7 +48,7 @@ export default function NotificationsPage() {
   };
 
   return (
-    <AdminShell active="notifications" eyebrow="Notification Center" title="通知中心" subtitle={summary ? `${summary.unread_count} unread` : "loading..."}>
+    <AdminShell active="notifications" unreadCount={summary?.unread_count} eyebrow="Notification Center" title="通知中心" subtitle={summary ? `${summary.unread_count} unread` : "loading..."}>
       {error && <p className="error-msg">{error}</p>}
 
       <section className="admin-toolbar">

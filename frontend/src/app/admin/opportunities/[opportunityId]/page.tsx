@@ -16,6 +16,7 @@ import ProposalFeedbackComposer from "@/components/admin/proposal-feedback-compo
 import StageBadge from "@/components/admin/stage-badge";
 import {
   getCurrentWorkspace,
+  getNotificationSummary,
   getOpportunityCockpit,
   runProposalDraftAgent,
   runProposalFollowupAgent,
@@ -35,9 +36,11 @@ export default function OpportunityDetailPage() {
   const [cockpit, setCockpit] = useState<AdminOpportunityCockpit | null>(null);
   const [retryKey, setRetryKey] = useState(0);
   const [wsName, setWsName] = useState<string | undefined>();
+  const [unreadCount, setUnreadCount] = useState<number | undefined>();
 
   useEffect(() => {
     getCurrentWorkspace().then((ws) => setWsName(ws.name)).catch(() => {});
+    getNotificationSummary().then((s) => setUnreadCount(s.unread_count)).catch(() => {});
   }, []);
 
   const doFetch = useCallback(async (id: string) => {
@@ -117,7 +120,7 @@ export default function OpportunityDetailPage() {
 
   if (state === "loading") {
     return (
-      <AdminShell active="opportunities" eyebrow="Loading..." title="Opportunity" subtitle="正在加载">
+      <AdminShell active="opportunities" unreadCount={unreadCount} eyebrow="Loading..." title="Opportunity" subtitle="正在加载">
         <div className="loading-state">Loading...</div>
       </AdminShell>
     );
@@ -126,7 +129,7 @@ export default function OpportunityDetailPage() {
   if (state === "error" || !cockpit) {
     const is404 = errorMsg?.includes("404");
     return (
-      <AdminShell active="opportunities" eyebrow={is404 ? "Not Found" : "Error"} title="Opportunity" subtitle={is404 ? "机会不存在" : "加载失败"}>
+      <AdminShell active="opportunities" unreadCount={unreadCount} eyebrow={is404 ? "Not Found" : "Error"} title="Opportunity" subtitle={is404 ? "机会不存在" : "加载失败"}>
         <div className="error-state">
           <p>{is404 ? "该机会不存在或已被删除" : `加载失败：${errorMsg || "Unknown error"}`}</p>
           {!is404 && <button className="button primary" type="button" onClick={() => setRetryKey((k) => k + 1)}>重试</button>}
@@ -146,6 +149,7 @@ export default function OpportunityDetailPage() {
     <AdminShell
       active="opportunities"
       workspaceName={wsName}
+      unreadCount={unreadCount}
       eyebrow="Company Cockpit / Opportunity"
       title={opp.title}
       subtitle={`${cockpit.customer?.name || ""} · ${opp.desired_outcome || ""}`}
