@@ -89,6 +89,12 @@ def _approve_customer_reply_decision(d: Decision, artifact: Artifact, opp: Oppor
     db.add(job)
     db.flush()
 
+    record_event(db, workspace_id=wid, type="delivery_job.created", source="decision_api",
+                  subject_type="delivery_job", subject_id=job.id,
+                  title=f"待发送任务已创建: {job.subject}",
+                  target_type="opportunity", target_id=opp.id,
+                  target_url=f"/admin/opportunities/{opp.id}")
+
     message = Message(
         workspace_id=wid,
         conversation_id=opp.conversation_id, customer_id=opp.customer_id,

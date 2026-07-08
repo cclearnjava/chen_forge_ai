@@ -96,3 +96,49 @@ class TestNotificationCenter:
         r = client.get("/api/v1/admin/notifications", headers=ADMIN)
         items = r.json()["items"]
         assert not any(n.get("workspace_id") == ws2.id for n in items if n.get("workspace_id"))
+
+    def test_lead_creation_generates_notification(self, client: TestClient):
+        init_db()
+        from app.auth.verification import create_verification_code
+        email = "nf-lead@example.com"
+        db = SessionLocal(); code = create_verification_code(db, email); db.close()
+        r = client.post("/api/v1/auth/email/verify", json={"email": email, "code": code})
+        h = {"Authorization": f"Bearer {r.json()['access_token']}"}
+        r = client.post("/api/v1/leads", json={
+            "owner_email": email, "company": "NFLeadTest", "contact_name": "T",
+            "contact_method": "email", "industry": "Tech",
+            "problem": "Notification integration test with sufficient text",
+            "desired_outcome": "Test", "company_size": "10-50", "budget_range": "1-3w",
+            "timeline": "1m", "honeypot": "", "submitted_after_ms": 2000,
+        }, headers=h)
+        assert r.status_code == 201
+        # Verify notification was generated
+        r2 = client.get("/api/v1/admin/notifications", headers=ADMIN)
+        items = r2.json()["items"]
+        lead_notifs = [n for n in items if n["kind"] == "lead_created"]
+        assert len(lead_notifs) >= 1
+
+    def test_approve_creates_delivery_notification(self, client: TestClient):
+        init_db()
+        from app.auth.verification import create_verification_code
+        email = "nf-approve@example.com"
+        db = SessionLocal(); code = create_verification_code(db, email); db.close()
+        r = client.post("/api/v1/auth/email/verify", json={"email": email, "code": code})
+        h = {"Authorization": f"Bearer {r.json()['access_token']}"}
+        r = client.post("/api/v1/leads", json={
+            "owner_email": email, "company": "NFApproveTest", "contact_name": "T",
+            "contact_method": "email", "industry": "Tech",
+            "problem": "Approve notification integration test text here",
+            "desired_outcome": "Test", "company_size": "10-50", "budget_range": "1-3w",
+            "timeline": "1m", "honeypot": "", "submitted_after_ms": 2000,
+        }, headers=h)
+        opp_id = r.json()["lifecycle"]["opportunity"]["id"]
+        client.post("/api/v1/admin/agent-runs/sales-reply", json={"opportunity_id": opp_id}, headers=ADMIN)
+        r2 = client.get(f"/api/v1/admin/opportunities/{opp_id}", headers=ADMIN)
+        w = [d for d in r2.json()["opportunity"]["decisions"] if d["status"] == "waiting"]
+        assert w
+        client.post(f"/api/v1/decisions/{w[0]['id']}/approve", json={}, headers=ADMIN)
+        r3 = client.get("/api/v1/admin/notifications", headers=ADMIN)
+        items = r3.json()["items"]
+        kinds = [n["kind"] for n in items]
+        assert "approval_required" in kinds or "delivery_action_required" in kinds

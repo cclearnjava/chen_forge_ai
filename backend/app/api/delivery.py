@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db import get_db
 from app.services.workspace import get_default_workspace_id
+from app.models import EventSeverity
 from app.services.events import record_event
 from app.services.workspace_guard import get_scoped_or_404
 from app.auth.middleware import get_admin_email
@@ -79,6 +80,10 @@ def send_delivery_job(
     except Exception as e:
         job.status = DeliveryStatus.failed
         job.error_message = str(e)
+        record_event(db, workspace_id=job.workspace_id, type="delivery_job.failed", source="delivery_api",
+                      subject_type="delivery_job", subject_id=job.id,
+                      title=f"发送失败: {job.subject}", summary=str(e)[:200],
+                      severity=EventSeverity.critical)
         db.commit()
         raise HTTPException(status_code=500, detail=f"Delivery failed: {e}")
 
