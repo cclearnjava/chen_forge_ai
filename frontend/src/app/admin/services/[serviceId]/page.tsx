@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import AdminShell from "@/components/admin/admin-shell";
-import { getService, updateService, activateService, deactivateService, archiveService, type ServiceOut } from "@/lib/admin-api";
+import { getNotificationSummary, getService, updateService, activateService, deactivateService, archiveService, type ServiceOut } from "@/lib/admin-api";
 
 export default function ServiceDetailPage() {
   const { serviceId } = useParams();
@@ -15,7 +15,7 @@ export default function ServiceDetailPage() {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Record<string, unknown>>({});
   const [saving, setSaving] = useState(false);
-  const [unreadCount] = useState<number | undefined>();
+  const [unreadCount, setUnreadCount] = useState<number | undefined>();
 
   const load = () => {
     setLoading(true);
@@ -23,7 +23,7 @@ export default function ServiceDetailPage() {
       .catch((e) => { setError(e.message); setLoading(false); });
   };
 
-  useEffect(() => { load(); }, [id]);
+  useEffect(() => { load(); getNotificationSummary().then((s) => setUnreadCount(s.unread_count)).catch(() => {}); }, [id]);
 
   const handleSave = async () => {
     setSaving(true);

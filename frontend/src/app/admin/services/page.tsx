@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import AdminShell from "@/components/admin/admin-shell";
-import { getServices, seedDefaultServices, type ServiceOut } from "@/lib/admin-api";
+import { getNotificationSummary, getServices, seedDefaultServices, type ServiceOut } from "@/lib/admin-api";
 
 export default function ServicesPage() {
   const [items, setItems] = useState<ServiceOut[]>([]);
@@ -12,7 +12,7 @@ export default function ServicesPage() {
   const [search, setSearch] = useState("");
   const [seeding, setSeeding] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [unreadCount] = useState<number | undefined>();
+  const [unreadCount, setUnreadCount] = useState<number | undefined>();
 
   const load = () => {
     getServices({ status: status === "all" ? undefined : status, q: search || undefined })
@@ -20,6 +20,7 @@ export default function ServicesPage() {
       .catch((e) => setError(e.message));
   };
 
+  useEffect(() => { getNotificationSummary().then((s) => setUnreadCount(s.unread_count)).catch(() => {}); }, []);
   useEffect(load, [status, search]);
 
   const handleSeed = async () => {

@@ -1,16 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AdminShell from "@/components/admin/admin-shell";
-import { createService } from "@/lib/admin-api";
+import { createService, getNotificationSummary } from "@/lib/admin-api";
 
 export default function NewServicePage() {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
+  const [unreadCount, setUnreadCount] = useState<number | undefined>();
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", slug: "", positioning: "", target_customer: "", typical_duration: "", price_min: "", price_max: "", risk_notes: "" });
+
+  useEffect(() => { getNotificationSummary().then((s) => setUnreadCount(s.unread_count)).catch(() => {}); }, []);
 
   const handleCreate = async () => {
     if (!form.name || !form.slug) { setError("Name and slug are required"); return; }
