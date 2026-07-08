@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import AdminShell from "@/components/admin/admin-shell";
-import { getNotificationSummary, getService, updateService, activateService, deactivateService, archiveService, type ServiceOut } from "@/lib/admin-api";
+import { createServiceDeliverable, createServicePackage, createServiceRiskRule, deleteServiceDeliverable, deleteServicePackage, deleteServiceRiskRule, getNotificationSummary, getService, getServiceDeliverables, getServicePackages, getServiceRiskRules, updateService, activateService, deactivateService, archiveService, type ServiceOut } from "@/lib/admin-api";
 
 export default function ServiceDetailPage() {
   const { serviceId } = useParams();
@@ -16,10 +16,16 @@ export default function ServiceDetailPage() {
   const [form, setForm] = useState<Record<string, unknown>>({});
   const [saving, setSaving] = useState(false);
   const [unreadCount, setUnreadCount] = useState<number | undefined>();
+  const [packages, setPackages] = useState<Record<string,unknown>[]>([]);
+  const [deliverables, setDeliverables] = useState<Record<string,unknown>[]>([]);
+  const [riskRules, setRiskRules] = useState<Record<string,unknown>[]>([]);
+  const [newPkg, setNewPkg] = useState("");
+  const [newDel, setNewDel] = useState("");
+  const [newRule, setNewRule] = useState("");
 
   const load = useCallback(() => {
     setLoading(true);
-    getService(id).then((s) => { setSvc(s); setForm({}); setLoading(false); })
+    Promise.all([getService(id), getServicePackages(id), getServiceDeliverables(id), getServiceRiskRules(id)]).then(([s, p, d, r]) => { setSvc(s); setPackages(p.items); setDeliverables(d.items); setRiskRules(r.items); setForm({}); setLoading(false); })
       .catch((e) => { setError(e.message); setLoading(false); });
   }, [id]);
 
@@ -33,6 +39,14 @@ export default function ServiceDetailPage() {
     catch (e: unknown) { setError(e instanceof Error ? e.message : "Update failed"); }
     finally { setSaving(false); }
   };
+
+  
+  const addPackage = async () => { if (!newPkg.trim()) return; await createServicePackage(id, { name: newPkg }); setNewPkg(""); const p = await getServicePackages(id); setPackages(p.items); };
+  const addDeliverable = async () => { if (!newDel.trim()) return; await createServiceDeliverable(id, { title: newDel }); setNewDel(""); const d = await getServiceDeliverables(id); setDeliverables(d.items); };
+  const addRiskRule = async () => { if (!newRule.trim()) return; await createServiceRiskRule(id, { title: newRule }); setNewRule(""); const r = await getServiceRiskRules(id); setRiskRules(r.items); };
+  const removePackage = async (pid: string) => { await deleteServicePackage(id, pid); setPackages(packages.filter(p => p.id !== pid)); };
+  const removeDeliverable = async (did: string) => { await deleteServiceDeliverable(id, did); setDeliverables(deliverables.filter(d => d.id !== did)); };
+  const removeRiskRule = async (rid: string) => { await deleteServiceRiskRule(id, rid); setRiskRules(riskRules.filter(r => r.id !== rid)); };
 
   const handleStatus = async (action: "activate" | "deactivate" | "archive") => {
     try {
@@ -93,6 +107,34 @@ export default function ServiceDetailPage() {
           {svc.outcomes_json && Array.isArray(svc.outcomes_json) ? <ul>{(svc.outcomes_json as string[]).map((o: string, i: number) => <li key={i}>{o}</li>)}</ul> : <p>N/A</p>}
         </article>
       </section>
+
+      <section className="detail-grid" style={{marginTop: "1rem"}}>
+        <article>
+          <div className="panel-heading"><h2>Packages</h2></div>
+          <div style={{display:"flex",gap:"0.5rem",marginBottom:"0.5rem"}}>
+            <input value={newPkg} onChange={(e) => setNewPkg(e.target.value)} placeholder="New package name" style={{flex:1}} />
+            <button className="button primary small" onClick={addPackage}>Add</button>
+          </div>
+          {packages.map((p: Record<string,unknown>) => <div key={String(p.id)} className="notification-item"><strong>{String(p.name)}</strong><button className="button ghost small" onClick={() => removePackage(String(p.id))} style={{marginLeft:"auto"}}>Del</button></div>)}
+        </article>
+        <article>
+          <div className="panel-heading"><h2>Deliverables</h2></div>
+          <div style={{display:"flex",gap:"0.5rem",marginBottom:"0.5rem"}}>
+            <input value={newDel} onChange={(e) => setNewDel(e.target.value)} placeholder="New deliverable title" style={{flex:1}} />
+            <button className="button primary small" onClick={addDeliverable}>Add</button>
+          </div>
+          {deliverables.map((d: Record<string,unknown>) => <div key={String(d.id)} className="notification-item"><strong>{String(d.title)}</strong><button className="button ghost small" onClick={() => removeDeliverable(String(d.id))} style={{marginLeft:"auto"}}>Del</button></div>)}
+        </article>
+        <article>
+          <div className="panel-heading"><h2>Risk Rules</h2></div>
+          <div style={{display:"flex",gap:"0.5rem",marginBottom:"0.5rem"}}>
+            <input value={newRule} onChange={(e) => setNewRule(e.target.value)} placeholder="New risk rule title" style={{flex:1}} />
+            <button className="button primary small" onClick={addRiskRule}>Add</button>
+          </div>
+          {riskRules.map((r: Record<string,unknown>) => <div key={String(r.id)} className="notification-item"><strong>{String(r.title)}</strong> · <small>{String(r.severity || "")}{r.disqualifies ? " · disqualifies" : ""}</small><button className="button ghost small" onClick={() => removeRiskRule(String(r.id))} style={{marginLeft:"auto"}}>Del</button></div>)}
+        </article>
+      </section>
+
     </AdminShell>
   );
 }

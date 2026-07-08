@@ -495,6 +495,45 @@ export async function seedDefaultServices(): Promise<{ count: number }> {
   return api("/admin/services/seed-defaults", { method: "POST" });
 }
 
+
+export async function getServicePackages(serviceId: string): Promise<{ items: Record<string, unknown>[] }> {
+  return api(`/admin/services/${serviceId}/packages`);
+}
+export async function getServiceDeliverables(serviceId: string): Promise<{ items: Record<string, unknown>[] }> {
+  return api(`/admin/services/${serviceId}/deliverables`);
+}
+export async function getServiceRiskRules(serviceId: string): Promise<{ items: Record<string, unknown>[] }> {
+  return api(`/admin/services/${serviceId}/risk-rules`);
+}
+export async function createServicePackage(serviceId: string, data: Record<string, unknown>): Promise<Record<string, unknown>> {
+  return api(`/admin/services/${serviceId}/packages`, { method: "POST", body: JSON.stringify(data) });
+}
+export async function updateServicePackage(serviceId: string, pkgId: string, data: Record<string, unknown>): Promise<Record<string, unknown>> {
+  return api(`/admin/services/${serviceId}/packages/${pkgId}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+export async function deleteServicePackage(serviceId: string, pkgId: string): Promise<void> {
+  await api(`/admin/services/${serviceId}/packages/${pkgId}`, { method: "DELETE" });
+}
+export async function createServiceDeliverable(serviceId: string, data: Record<string, unknown>): Promise<Record<string, unknown>> {
+  return api(`/admin/services/${serviceId}/deliverables`, { method: "POST", body: JSON.stringify(data) });
+}
+export async function updateServiceDeliverable(serviceId: string, delId: string, data: Record<string, unknown>): Promise<Record<string, unknown>> {
+  return api(`/admin/services/${serviceId}/deliverables/${delId}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+export async function deleteServiceDeliverable(serviceId: string, delId: string): Promise<void> {
+  await api(`/admin/services/${serviceId}/deliverables/${delId}`, { method: "DELETE" });
+}
+export async function createServiceRiskRule(serviceId: string, data: Record<string, unknown>): Promise<Record<string, unknown>> {
+  return api(`/admin/services/${serviceId}/risk-rules`, { method: "POST", body: JSON.stringify(data) });
+}
+export async function updateServiceRiskRule(serviceId: string, ruleId: string, data: Record<string, unknown>): Promise<Record<string, unknown>> {
+  return api(`/admin/services/${serviceId}/risk-rules/${ruleId}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+export async function deleteServiceRiskRule(serviceId: string, ruleId: string): Promise<void> {
+  await api(`/admin/services/${serviceId}/risk-rules/${ruleId}`, { method: "DELETE" });
+}
+
+
 export const stageLabels: Record<Stage, string> = {
   lead: "Lead",
   qualified: "Qualified",
