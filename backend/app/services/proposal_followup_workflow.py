@@ -6,6 +6,7 @@ from app.models import (
     AgentProfile, AgentRun, AgentRunStatus, Artifact, ArtifactType,
     AuditLog, Decision, DecisionStatus,
 )
+from app.services.workspace import get_default_workspace_id
 from app.services.agent_context import build_proposal_followup_context
 from app.services.mock_agents import (
     generate_objection_analysis, generate_next_step_recommendation,
@@ -28,11 +29,12 @@ def _upsert_agent_profile(db: Session, name: str, display_name: str, role: str,
     return profile
 
 
-def _create_artifact(db: Session, *, agent_run_id: str, opportunity_id: str,
+def _create_artifact(db: Session, *, workspace_id: str, agent_run_id: str, opportunity_id: str,
                      lead_id: str | None, artifact_type: ArtifactType,
                      title: str, content_markdown: str, content_json: dict,
                      model: str, prompt_version: str, requires_approval: bool) -> Artifact:
     artifact = Artifact(
+        workspace_id=workspace_id,
         agent_run_id=agent_run_id, opportunity_id=opportunity_id, lead_id=lead_id,
         type=artifact_type, title=title,
         content_markdown=content_markdown, content_json=content_json,
@@ -48,6 +50,7 @@ def run_proposal_followup_workflow(db: Session, opportunity_id: str) -> dict:
     opp = ctx["opportunity"]
     lead_id = ctx["lead_id"]
 
+    wid = get_default_workspace_id(db)
     profile = _upsert_agent_profile(
         db, name="proposal_followup_agent", display_name="Proposal Follow-up Agent",
         role="基于已发送 Proposal 和客户反馈生成跟进回复、异议分析和下一步建议",
@@ -56,6 +59,7 @@ def run_proposal_followup_workflow(db: Session, opportunity_id: str) -> dict:
     )
 
     run = AgentRun(
+        workspace_id=wid,
         agent_profile_id=profile.id, lead_id=lead_id,
         opportunity_id=opportunity_id, conversation_id=opp.conversation_id,
         status=AgentRunStatus.running, started_at=datetime.utcnow(),
@@ -69,7 +73,7 @@ def run_proposal_followup_workflow(db: Session, opportunity_id: str) -> dict:
     recommendation = generate_next_step_recommendation(ctx)
 
     reply_artifact = _create_artifact(
-        db, agent_run_id=run.id, opportunity_id=opportunity_id, lead_id=lead_id,
+        db, workspace_id=wid, agent_run_id=run.id, opportunity_id=opportunity_id, lead_id=lead_id,
         artifact_type=ArtifactType.proposal_followup_reply_draft,
         title="Proposal Follow-up 回复草稿",
         content_markdown=reply["content_markdown"], content_json=reply["content_json"],
@@ -78,7 +82,7 @@ def run_proposal_followup_workflow(db: Session, opportunity_id: str) -> dict:
     )
 
     objection_artifact = _create_artifact(
-        db, agent_run_id=run.id, opportunity_id=opportunity_id, lead_id=lead_id,
+        db, workspace_id=wid, agent_run_id=run.id, opportunity_id=opportunity_id, lead_id=lead_id,
         artifact_type=ArtifactType.objection_analysis,
         title="异议分析",
         content_markdown=objection["content_markdown"], content_json=objection["content_json"],
@@ -87,7 +91,7 @@ def run_proposal_followup_workflow(db: Session, opportunity_id: str) -> dict:
     )
 
     recommendation_artifact = _create_artifact(
-        db, agent_run_id=run.id, opportunity_id=opportunity_id, lead_id=lead_id,
+        db, workspace_id=wid, agent_run_id=run.id, opportunity_id=opportunity_id, lead_id=lead_id,
         artifact_type=ArtifactType.next_step_recommendation,
         title="下一步建议",
         content_markdown=recommendation["content_markdown"], content_json=recommendation["content_json"],
@@ -104,6 +108,7 @@ def run_proposal_followup_workflow(db: Session, opportunity_id: str) -> dict:
     }
 
     decision = Decision(
+        workspace_id=wid,
         agent_run_id=run.id, opportunity_id=opportunity_id, lead_id=lead_id,
         artifact_id=reply_artifact.id,
         question="是否批准发送这条 Proposal Follow-up 回复草稿？",
@@ -114,6 +119,7 @@ def run_proposal_followup_workflow(db: Session, opportunity_id: str) -> dict:
     db.flush()
 
     db.add(AuditLog(
+        workspace_id=wid,
         lead_id=lead_id, actor="system:proposal_followup_workflow",
         action="proposal_followup_generated",
         details_json={

@@ -23,7 +23,9 @@ def create_lifecycle_from_lead(db: Session, lead_id: str) -> dict:
     if existing_opportunity:
         raise ValueError(f"Lead {lead_id} already has lifecycle")
 
+    wid = lead.workspace_id
     customer = Customer(
+        workspace_id=wid,
         name=lead.company,
         owner_email=lead.owner_email,
         industry=lead.industry,
@@ -34,6 +36,7 @@ def create_lifecycle_from_lead(db: Session, lead_id: str) -> dict:
     db.flush()
 
     contact = Contact(
+        workspace_id=wid,
         customer_id=customer.id,
         name=lead.contact_name,
         email=lead.owner_email,
@@ -45,6 +48,7 @@ def create_lifecycle_from_lead(db: Session, lead_id: str) -> dict:
     db.flush()
 
     conversation = Conversation(
+        workspace_id=wid,
         customer_id=customer.id,
         lead_id=lead.id,
         primary_contact_id=contact.id,
@@ -55,6 +59,7 @@ def create_lifecycle_from_lead(db: Session, lead_id: str) -> dict:
     db.flush()
 
     message = Message(
+        workspace_id=wid,
         conversation_id=conversation.id,
         customer_id=customer.id,
         contact_id=contact.id,
@@ -67,6 +72,7 @@ def create_lifecycle_from_lead(db: Session, lead_id: str) -> dict:
     db.flush()
 
     opportunity = Opportunity(
+        workspace_id=wid,
         customer_id=customer.id,
         lead_id=lead.id,
         primary_contact_id=contact.id,

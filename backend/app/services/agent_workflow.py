@@ -2,6 +2,7 @@
 
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
+from app.services.workspace import get_default_workspace_id
 from app.models import (
     AgentTask, TaskStatus, Artifact, ArtifactType,
     Decision, DecisionStatus, AuditLog, Lead,
@@ -21,9 +22,11 @@ def _log(db: Session, lead_id: str, actor: str, action: str, details: dict = Non
 def _create_artifact(
     db: Session, lead_id: str, artifact_type: ArtifactType,
     title: str, content_markdown: str, content_json: dict,
+    workspace_id: str,
     model: str, prompt_version: str, requires_approval: bool = False,
 ) -> Artifact:
     artifact = Artifact(
+        workspace_id=workspace_id,
         lead_id=lead_id,
         type=artifact_type,
         title=title,
@@ -40,9 +43,10 @@ def _create_artifact(
 
 def _create_decision(
     db: Session, lead_id: str, artifact_id: str,
-    question: str, recommendation: str = "approve",
+    question: str, wid: str, recommendation: str = "approve",
 ) -> Decision:
     decision = Decision(
+        workspace_id=wid,
         lead_id=lead_id,
         artifact_id=artifact_id,
         question=question,
@@ -54,7 +58,7 @@ def _create_decision(
 
 
 def _run_agent(
-    db: Session, lead_id: str, agent_name: str, prompt_name: str,
+    db: Session, lead_id: str, wid: str, agent_name: str, prompt_name: str,
     input_payload: dict, output_schema: dict,
     artifact_type: ArtifactType, artifact_title: str,
     requires_approval: bool = False, decision_question: str | None = None,
@@ -82,19 +86,19 @@ def _run_agent(
         artifact = _create_artifact(
             db, lead_id, artifact_type,
             artifact_title,
-            content_markdown=_markdown_from_output(output),
-            content_json=output,
-            model=f"mock-{prompt_name}-v1",
-            prompt_version="v1",
-            requires_approval=requires_approval,
+            _markdown_from_output(output),
+            output,
+            wid,
+            f"mock-{prompt_name}-v1",
+            "v1",
+            requires_approval,
         )
 
         decision = None
         if decision_question:
             decision = _create_decision(
                 db, lead_id, artifact.id,
-                decision_question,
-                "approve",
+                decision_question, wid, "approve",
             )
 
         _log(db, lead_id, f"agent:{agent_name}", f"agent_completed",
@@ -117,6 +121,7 @@ def _run_agent(
 
 
 def run_diagnosis(db: Session, lead_id: str) -> dict:
+    wid = get_default_workspace_id(db)
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
     if not lead:
         raise ValueError(f"Lead {lead_id} not found")
@@ -129,7 +134,7 @@ def run_diagnosis(db: Session, lead_id: str) -> dict:
         "company_size": lead.company_size,
     }
     return _run_agent(
-        db, lead_id, "lead_diagnosis", "lead_diagnosis",
+        db, lead_id, wid, "lead_diagnosis", "lead_diagnosis",
         payload, {},
         ArtifactType.requirement_summary, "需求理解",
         requires_approval=False,
@@ -138,6 +143,7 @@ def run_diagnosis(db: Session, lead_id: str) -> dict:
 
 
 def run_proposal(db: Session, lead_id: str) -> dict:
+    wid = get_default_workspace_id(db)
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
     if not lead:
         raise ValueError(f"Lead {lead_id} not found")
@@ -148,7 +154,7 @@ def run_proposal(db: Session, lead_id: str) -> dict:
         "desired_outcome": lead.desired_outcome,
     }
     return _run_agent(
-        db, lead_id, "proposal", "proposal",
+        db, lead_id, wid, "proposal", "proposal",
         payload, {},
         ArtifactType.proposal_draft, "方案草案",
         requires_approval=True,
@@ -157,6 +163,7 @@ def run_proposal(db: Session, lead_id: str) -> dict:
 
 
 def run_intake_response(db: Session, lead_id: str) -> dict:
+    wid = get_default_workspace_id(db)
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
     if not lead:
         raise ValueError(f"Lead {lead_id} not found")
@@ -185,6 +192,7 @@ def run_intake_response(db: Session, lead_id: str) -> dict:
     art = _create_artifact(
         db, lead_id, ArtifactType.requirement_summary,
         "需求理解", str(summary), summary,
+        wid,
         "mock-intake_response-v1", "v1", requires_approval=False,
     )
     artifacts.append({"id": art.id, "type": "requirement_summary"})
@@ -195,13 +203,13 @@ def run_intake_response(db: Session, lead_id: str) -> dict:
         db, lead_id, ArtifactType.customer_reply_draft,
         reply.get("subject", "客户回复草稿"),
         reply.get("body_markdown", str(reply)),
-        reply, "mock-intake_response-v1", "v1", requires_approval=True,
+        reply, wid,
+        "mock-intake_response-v1", "v1", requires_approval=True,
     )
     artifacts.append({"id": art.id, "type": "customer_reply_draft"})
     dec = _create_decision(
         db, lead_id, art.id,
-        "是否批准此客户回复草稿并发送？",
-        "approve",
+        "是否批准此客户回复草稿并发送？", wid, "approve",
     )
     decisions.append({"id": dec.id, "question": dec.question})
 
@@ -210,13 +218,13 @@ def run_intake_response(db: Session, lead_id: str) -> dict:
     art = _create_artifact(
         db, lead_id, ArtifactType.proposal_draft,
         "方案草案", str(proposal),
-        proposal, "mock-intake_response-v1", "v1", requires_approval=True,
+        proposal, wid,
+        "mock-intake_response-v1", "v1", requires_approval=True,
     )
     artifacts.append({"id": art.id, "type": "proposal_draft"})
     dec = _create_decision(
         db, lead_id, art.id,
-        "是否批准此方案草案并进入下一步？",
-        "approve",
+        "是否批准此方案草案并进入下一步？", wid, "approve",
     )
     decisions.append({"id": dec.id, "question": dec.question})
 

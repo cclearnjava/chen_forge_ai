@@ -5,6 +5,7 @@ from app.auth.middleware import get_admin_email, get_current_email
 from app.schemas import LeadCreate, LeadUpdate, LeadOut, AttachmentOut, PaginatedResponse
 from app.models import Lead, LeadAttachment, LeadStatus
 from app.services.customer_lifecycle import create_lifecycle_from_lead
+from app.services.workspace import get_default_workspace_id
 from app.config import settings
 import os
 import uuid
@@ -29,7 +30,9 @@ def create_lead(req: LeadCreate, db: Session = Depends(get_db), email: str = Dep
     if req.owner_email != email:
         raise HTTPException(status_code=403, detail="Email mismatch")
 
+    workspace_id = get_default_workspace_id(db)
     lead = Lead(
+        workspace_id=workspace_id,
         owner_email=req.owner_email,
         company=req.company,
         contact_name=req.contact_name,

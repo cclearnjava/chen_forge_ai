@@ -6,6 +6,7 @@ from app.models import (
     AgentProfile, AgentRun, AgentRunStatus, Artifact, ArtifactType,
     AuditLog, Decision, DecisionStatus,
 )
+from app.services.workspace import get_default_workspace_id
 from app.services.agent_context import build_opportunity_agent_context
 from app.services.mock_agents import generate_sales_reply, review_sales_reply
 
@@ -27,7 +28,7 @@ def _upsert_agent_profile(db: Session, name: str, display_name: str, role: str,
     return profile
 
 
-def _create_artifact(db: Session, *, agent_run_id: str, opportunity_id: str,
+def _create_artifact(db: Session, *, workspace_id: str, agent_run_id: str, opportunity_id: str,
                      lead_id: str | None, artifact_type: ArtifactType,
                      title: str, content_markdown: str, content_json: dict,
                      model: str, prompt_version: str, requires_approval: bool) -> Artifact:
@@ -60,6 +61,7 @@ def run_sales_reply_workflow(db: Session, opportunity_id: str) -> dict:
     lead_id = ctx["lead_id"]
 
     # 2. Upsert sales_agent profile
+    sales_wid = get_default_workspace_id(db)
     sales_profile = _upsert_agent_profile(
         db, name="sales_agent", display_name="Sales Agent",
         role="生成客户回复草稿和澄清问题",
@@ -87,7 +89,7 @@ def run_sales_reply_workflow(db: Session, opportunity_id: str) -> dict:
 
     # 5. Create customer_reply_draft Artifact
     draft_artifact = _create_artifact(
-        db,
+        db, workspace_id=sales_wid,
         agent_run_id=sales_run.id,
         opportunity_id=opportunity_id,
         lead_id=lead_id,
@@ -102,7 +104,7 @@ def run_sales_reply_workflow(db: Session, opportunity_id: str) -> dict:
 
     # 6. Create discovery_questions Artifact
     questions_artifact = _create_artifact(
-        db,
+        db, workspace_id=sales_wid,
         agent_run_id=sales_run.id,
         opportunity_id=opportunity_id,
         lead_id=lead_id,
@@ -125,6 +127,7 @@ def run_sales_reply_workflow(db: Session, opportunity_id: str) -> dict:
     }
 
     # 7. Upsert quality_agent profile
+    quality_wid = get_default_workspace_id(db)
     quality_profile = _upsert_agent_profile(
         db, name="quality_agent", display_name="Quality Agent",
         role="审查客户回复草稿中的风险",
@@ -150,7 +153,7 @@ def run_sales_reply_workflow(db: Session, opportunity_id: str) -> dict:
 
     # 10. Create review Artifact
     review_artifact = _create_artifact(
-        db,
+        db, workspace_id=sales_wid,
         agent_run_id=quality_run.id,
         opportunity_id=opportunity_id,
         lead_id=lead_id,
@@ -174,6 +177,7 @@ def run_sales_reply_workflow(db: Session, opportunity_id: str) -> dict:
 
     # 11. Create waiting Decision
     decision = Decision(
+        workspace_id=sales_wid,
         agent_run_id=sales_run.id,
         opportunity_id=opportunity_id,
         lead_id=lead_id,
@@ -187,6 +191,7 @@ def run_sales_reply_workflow(db: Session, opportunity_id: str) -> dict:
 
     # 12. AuditLog
     db.add(AuditLog(
+        workspace_id=sales_wid,
         lead_id=lead_id,
         actor="system:sales_reply_workflow",
         action="sales_reply_workflow_completed",

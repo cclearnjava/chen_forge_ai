@@ -6,6 +6,7 @@ from app.models import (
     AgentProfile, AgentRun, AgentRunStatus, Artifact, ArtifactType,
     AuditLog, Decision, DecisionStatus,
 )
+from app.services.workspace import get_default_workspace_id
 from app.services.quote_sow_context import build_quote_sow_context
 from app.services.mock_agents import generate_commercial_review, generate_quote_draft, generate_sow_draft
 
@@ -25,11 +26,12 @@ def _upsert_profile(db: Session, name: str, display_name: str, role: str,
     return profile
 
 
-def _create_artifact(db: Session, *, agent_run_id: str, opportunity_id: str,
+def _create_artifact(db: Session, *, workspace_id: str, agent_run_id: str, opportunity_id: str,
                      lead_id: str | None, artifact_type: ArtifactType,
                      title: str, content_markdown: str, content_json: dict,
                      model: str, prompt_version: str, requires_approval: bool) -> Artifact:
     a = Artifact(
+        workspace_id=workspace_id,
         agent_run_id=agent_run_id, opportunity_id=opportunity_id, lead_id=lead_id,
         type=artifact_type, title=title,
         content_markdown=content_markdown, content_json=content_json,
@@ -45,6 +47,7 @@ def run_quote_sow_workflow(db: Session, opportunity_id: str) -> dict:
     opp = ctx["opportunity"]
     lead_id = ctx["lead_id"]
 
+    wid = get_default_workspace_id(db)
     profile = _upsert_profile(
         db, name="quote_sow_agent", display_name="Quote / SOW Agent",
         role="基于已批准 Proposal 和客户反馈生成报价、SOW 和商业风险审查",
@@ -53,6 +56,7 @@ def run_quote_sow_workflow(db: Session, opportunity_id: str) -> dict:
     )
 
     run = AgentRun(
+        workspace_id=wid,
         agent_profile_id=profile.id, lead_id=lead_id,
         opportunity_id=opportunity_id, conversation_id=opp.conversation_id,
         status=AgentRunStatus.running, started_at=datetime.utcnow(),
@@ -66,21 +70,21 @@ def run_quote_sow_workflow(db: Session, opportunity_id: str) -> dict:
     review = generate_commercial_review(ctx)
 
     quote_artifact = _create_artifact(
-        db, agent_run_id=run.id, opportunity_id=opportunity_id, lead_id=lead_id,
+        db, workspace_id=wid, agent_run_id=run.id, opportunity_id=opportunity_id, lead_id=lead_id,
         artifact_type=ArtifactType.quote_draft, title="Quote Draft",
         content_markdown=quote["content_markdown"], content_json=quote["content_json"],
         model="mock-quote-sow-v1", prompt_version="quote_sow.v1", requires_approval=True,
     )
 
     sow_artifact = _create_artifact(
-        db, agent_run_id=run.id, opportunity_id=opportunity_id, lead_id=lead_id,
+        db, workspace_id=wid, agent_run_id=run.id, opportunity_id=opportunity_id, lead_id=lead_id,
         artifact_type=ArtifactType.sow_draft, title="SOW Draft",
         content_markdown=sow["content_markdown"], content_json=sow["content_json"],
         model="mock-quote-sow-v1", prompt_version="quote_sow.v1", requires_approval=True,
     )
 
     review_artifact = _create_artifact(
-        db, agent_run_id=run.id, opportunity_id=opportunity_id, lead_id=lead_id,
+        db, workspace_id=wid, agent_run_id=run.id, opportunity_id=opportunity_id, lead_id=lead_id,
         artifact_type=ArtifactType.commercial_review, title="Commercial Review",
         content_markdown=review["content_markdown"], content_json=review["content_json"],
         model="mock-quote-sow-v1", prompt_version="quote_sow.v1", requires_approval=False,
@@ -95,6 +99,7 @@ def run_quote_sow_workflow(db: Session, opportunity_id: str) -> dict:
     }
 
     decision = Decision(
+        workspace_id=wid,
         agent_run_id=run.id, opportunity_id=opportunity_id, lead_id=lead_id,
         artifact_id=quote_artifact.id,
         question="是否批准这份 Quote / SOW 草稿？",
@@ -105,6 +110,7 @@ def run_quote_sow_workflow(db: Session, opportunity_id: str) -> dict:
     db.flush()
 
     db.add(AuditLog(
+        workspace_id=wid,
         lead_id=lead_id, actor="system:quote_sow_workflow",
         action="quote_sow_generated",
         details_json={

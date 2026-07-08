@@ -124,10 +124,25 @@ class OpportunityStage(str, enum.Enum):
     contracting = "contracting"
 
 
+class Workspace(Base):
+    __tablename__ = "workspaces"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    slug: Mapped[str] = mapped_column(String(100), nullable=False, unique=True, index=True)
+    industry: Mapped[str | None] = mapped_column(String(255))
+    business_type: Mapped[str | None] = mapped_column(String(100))
+    positioning: Mapped[str | None] = mapped_column(Text)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+
+
 class Lead(Base):
     __tablename__ = "leads"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    workspace_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True)
     owner_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     company: Mapped[str] = mapped_column(String(255), nullable=False)
     contact_name: Mapped[str | None] = mapped_column(String(255))
@@ -150,6 +165,7 @@ class Customer(Base):
     __tablename__ = "customers"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    workspace_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     owner_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     industry: Mapped[str | None] = mapped_column(String(255))
@@ -167,6 +183,8 @@ class Customer(Base):
 class Contact(Base):
     __tablename__ = "contacts"
 
+   
+    workspace_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     customer_id: Mapped[str] = mapped_column(String(36), ForeignKey("customers.id"), nullable=False, index=True)
     name: Mapped[str | None] = mapped_column(String(255))
@@ -184,6 +202,8 @@ class Contact(Base):
 class Conversation(Base):
     __tablename__ = "conversations"
 
+   
+    workspace_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     customer_id: Mapped[str] = mapped_column(String(36), ForeignKey("customers.id"), nullable=False, index=True)
     lead_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("leads.id"), index=True)
@@ -203,6 +223,8 @@ class Conversation(Base):
 class Message(Base):
     __tablename__ = "messages"
 
+   
+    workspace_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     conversation_id: Mapped[str] = mapped_column(String(36), ForeignKey("conversations.id"), nullable=False, index=True)
     customer_id: Mapped[str] = mapped_column(String(36), ForeignKey("customers.id"), nullable=False, index=True)
@@ -221,6 +243,8 @@ class Message(Base):
 class Opportunity(Base):
     __tablename__ = "opportunities"
 
+   
+    workspace_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     customer_id: Mapped[str] = mapped_column(String(36), ForeignKey("customers.id"), nullable=False, index=True)
     lead_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("leads.id"), index=True)
@@ -247,6 +271,8 @@ class Opportunity(Base):
 class AgentProfile(Base):
     __tablename__ = "agent_profiles"
 
+   
+    workspace_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True, index=True)
     display_name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -264,6 +290,8 @@ class AgentProfile(Base):
 class AgentRun(Base):
     __tablename__ = "agent_runs"
 
+   
+    workspace_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     agent_profile_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("agent_profiles.id"), nullable=False, index=True
@@ -296,6 +324,8 @@ class AgentRun(Base):
 class ToolInvocation(Base):
     __tablename__ = "tool_invocations"
 
+   
+    workspace_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     agent_run_id: Mapped[str] = mapped_column(String(36), ForeignKey("agent_runs.id"), nullable=False, index=True)
     tool_name: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
@@ -323,6 +353,8 @@ class VerificationCode(Base):
 class LeadAttachment(Base):
     __tablename__ = "lead_attachments"
 
+   
+    workspace_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     lead_id: Mapped[str] = mapped_column(String(36), ForeignKey("leads.id"), nullable=False, index=True)
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -336,6 +368,8 @@ class LeadAttachment(Base):
 class AgentTask(Base):
     __tablename__ = "agent_tasks"
 
+   
+    workspace_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     lead_id: Mapped[str] = mapped_column(String(36), ForeignKey("leads.id"), nullable=False, index=True)
     agent_name: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -352,6 +386,8 @@ class AgentTask(Base):
 class Artifact(Base):
     __tablename__ = "artifacts"
 
+   
+    workspace_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     lead_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("leads.id"), index=True)
     agent_run_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("agent_runs.id"), index=True)
@@ -373,6 +409,8 @@ class Artifact(Base):
 class Decision(Base):
     __tablename__ = "decisions"
 
+   
+    workspace_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     lead_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("leads.id"), index=True)
     agent_run_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("agent_runs.id"), index=True)
@@ -393,6 +431,8 @@ class Decision(Base):
 class DeliveryJob(Base):
     __tablename__ = "delivery_jobs"
 
+   
+    workspace_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     lead_id: Mapped[str] = mapped_column(String(36), ForeignKey("leads.id"), nullable=False, index=True)
     artifact_id: Mapped[str] = mapped_column(String(36), ForeignKey("artifacts.id"), nullable=False)
@@ -412,6 +452,8 @@ class DeliveryJob(Base):
 class NotificationEvent(Base):
     __tablename__ = "notification_events"
 
+   
+    workspace_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     lead_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("leads.id"), index=True)
     channel: Mapped[NotificationChannel] = mapped_column(SAEnum(NotificationChannel), nullable=False)
@@ -427,6 +469,8 @@ class NotificationEvent(Base):
 class AuditLog(Base):
     __tablename__ = "audit_logs"
 
+   
+    workspace_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     lead_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("leads.id"), index=True)
     actor: Mapped[str] = mapped_column(String(255), nullable=False)

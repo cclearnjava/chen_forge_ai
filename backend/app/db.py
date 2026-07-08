@@ -25,3 +25,9 @@ def get_db():
 
 def init_db():
     Base.metadata.create_all(bind=engine)
+    from app.services.workspace import get_or_create_default_workspace
+    db = SessionLocal()
+    try:
+        get_or_create_default_workspace(db)
+    finally:
+        db.close()

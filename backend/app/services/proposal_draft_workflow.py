@@ -6,6 +6,7 @@ from app.models import (
     AgentProfile, AgentRun, AgentRunStatus, Artifact, ArtifactType,
     AuditLog, Decision, DecisionStatus,
 )
+from app.services.workspace import get_default_workspace_id
 from app.services.agent_context import build_opportunity_proposal_context
 from app.services.mock_agents import generate_proposal_draft
 
@@ -30,6 +31,7 @@ def run_proposal_draft_workflow(db: Session, opportunity_id: str) -> dict:
     opp = ctx["opportunity"]
     lead_id = ctx["lead_id"]
 
+    wid = get_default_workspace_id(db)
     profile = _upsert_agent_profile(
         db, name="proposal_agent", display_name="Proposal Agent",
         role="基于客户对话和商机上下文生成 PoC 方案草案",
@@ -38,6 +40,7 @@ def run_proposal_draft_workflow(db: Session, opportunity_id: str) -> dict:
     )
 
     run = AgentRun(
+        workspace_id=wid,
         agent_profile_id=profile.id,
         lead_id=lead_id,
         opportunity_id=opportunity_id,
@@ -52,6 +55,7 @@ def run_proposal_draft_workflow(db: Session, opportunity_id: str) -> dict:
     draft = generate_proposal_draft(ctx)
 
     artifact = Artifact(
+        workspace_id=wid,
         agent_run_id=run.id,
         opportunity_id=opportunity_id,
         lead_id=lead_id,
@@ -71,6 +75,7 @@ def run_proposal_draft_workflow(db: Session, opportunity_id: str) -> dict:
     run.output_json = {"artifact_id": artifact.id}
 
     decision = Decision(
+        workspace_id=wid,
         agent_run_id=run.id,
         opportunity_id=opportunity_id,
         lead_id=lead_id,
@@ -83,6 +88,7 @@ def run_proposal_draft_workflow(db: Session, opportunity_id: str) -> dict:
     db.flush()
 
     db.add(AuditLog(
+        workspace_id=wid,
         lead_id=lead_id,
         actor="system:proposal_draft_workflow",
         action="proposal_draft_generated",
