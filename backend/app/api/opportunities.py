@@ -681,6 +681,7 @@ def get_approved_proposal(
     db: Session = Depends(get_db),
     _admin: str = Depends(get_admin_email),
 ):
+    get_scoped_or_404(db, Opportunity, opportunity_id, label="Opportunity")
     data = find_latest_approved_proposal(db, opportunity_id)
     if not data:
         raise HTTPException(status_code=404, detail="No approved proposal found for this opportunity")
@@ -693,6 +694,7 @@ def download_approved_proposal_pdf(
     db: Session = Depends(get_db),
     admin: str = Depends(get_admin_email),
 ):
+    get_scoped_or_404(db, Opportunity, opportunity_id, label="Opportunity")
     data = find_latest_approved_proposal(db, opportunity_id)
     if not data:
         raise HTTPException(status_code=404, detail="No approved proposal found for this opportunity")

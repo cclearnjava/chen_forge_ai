@@ -196,3 +196,16 @@ class TestWorkspaceMvp:
         opp2_id = opp2.id; db.close()
         r = client.patch(f"/api/v1/admin/opportunities/{opp2_id}", json={"next_step": "test"}, headers=ADMIN)
         assert r.status_code == 404
+
+    def test_approved_proposal_returns_404_for_other_workspace(self, client: TestClient):
+        init_db()
+        db = SessionLocal()
+        ws2 = Workspace(slug="other-ws-ap", name="Other", is_default=False)
+        db.add(ws2); db.commit()
+        r = client.get(f"/api/v1/admin/opportunities/nonexistent-id/approved-proposal", headers=ADMIN)
+        assert r.status_code == 404
+
+    def test_approved_quote_sow_returns_404_for_other_workspace(self, client: TestClient):
+        init_db()
+        r = client.get("/api/v1/admin/opportunities/nonexistent-id/approved-quote-sow", headers=ADMIN)
+        assert r.status_code == 404
