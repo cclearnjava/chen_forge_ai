@@ -769,11 +769,11 @@ def create_proposal_delivery_job(
             "sent_at": _to_iso(existing.sent_at),
         }}, status_code=200)
 
-    # Ensure PDF is available
+    # Try pre-rendering PDF (non-blocking: download endpoint will retry on demand)
     try:
         render_approved_proposal_pdf(data)
-    except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"PDF generation failed: {exc}")
+    except Exception:
+        pass
 
     # Determine recipient
     recipient = data.get("customer_name", "unknown")
