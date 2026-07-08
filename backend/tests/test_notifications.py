@@ -142,3 +142,104 @@ class TestNotificationCenter:
         items = r3.json()["items"]
         kinds = [n["kind"] for n in items]
         assert "approval_required" in kinds or "delivery_action_required" in kinds
+
+    # ── BE-01: Per-rule mapping tests ──
+
+    def test_rule_lead_created_maps_to_lead_created(self, client: TestClient):
+        init_db(); db = SessionLocal(); wid = get_default_workspace_id(db)
+        record_event(db, workspace_id=wid, type="lead.created", source="test", title="Lead created", subject_type="lead", subject_id="l1")
+        db.commit()
+        n = db.query(Notification).filter(Notification.kind == NotificationKind.lead_created).order_by(Notification.created_at.desc()).first()
+        assert n is not None; db.close()
+
+    def test_rule_decision_waiting_maps_to_approval_required(self, client: TestClient):
+        init_db(); db = SessionLocal(); wid = get_default_workspace_id(db)
+        record_event(db, workspace_id=wid, type="decision.waiting", source="test", title="Approval needed", subject_type="decision", subject_id="d1")
+        db.commit()
+        n = db.query(Notification).filter(Notification.kind == NotificationKind.approval_required).order_by(Notification.created_at.desc()).first()
+        assert n is not None; db.close()
+
+    def test_rule_delivery_job_created_maps_to_delivery_action_required(self, client: TestClient):
+        init_db(); db = SessionLocal(); wid = get_default_workspace_id(db)
+        record_event(db, workspace_id=wid, type="delivery_job.created", source="test", title="Delivery created", subject_type="delivery_job", subject_id="dj1")
+        db.commit()
+        n = db.query(Notification).filter(Notification.kind == NotificationKind.delivery_action_required).order_by(Notification.created_at.desc()).first()
+        assert n is not None; db.close()
+
+    def test_rule_delivery_job_sent_maps_to_delivery_sent(self, client: TestClient):
+        init_db(); db = SessionLocal(); wid = get_default_workspace_id(db)
+        record_event(db, workspace_id=wid, type="delivery_job.sent", source="test", title="Delivery sent", subject_type="delivery_job", subject_id="dj2")
+        db.commit()
+        n = db.query(Notification).filter(Notification.kind == NotificationKind.delivery_sent).order_by(Notification.created_at.desc()).first()
+        assert n is not None; db.close()
+
+    def test_rule_delivery_job_failed_maps_to_delivery_failed(self, client: TestClient):
+        init_db(); db = SessionLocal(); wid = get_default_workspace_id(db)
+        record_event(db, workspace_id=wid, type="delivery_job.failed", source="test", title="Delivery failed", subject_type="delivery_job", subject_id="dj3")
+        db.commit()
+        n = db.query(Notification).filter(Notification.kind == NotificationKind.delivery_failed).order_by(Notification.created_at.desc()).first()
+        assert n is not None; db.close()
+
+    def test_rule_customer_reply_maps_to_customer_reply_recorded(self, client: TestClient):
+        init_db(); db = SessionLocal(); wid = get_default_workspace_id(db)
+        record_event(db, workspace_id=wid, type="message.customer_recorded", source="test", title="Customer replied", subject_type="opportunity", subject_id="o1")
+        db.commit()
+        n = db.query(Notification).filter(Notification.kind == NotificationKind.customer_reply_recorded).order_by(Notification.created_at.desc()).first()
+        assert n is not None; db.close()
+
+    def test_rule_proposal_draft_maps_to_proposal_ready(self, client: TestClient):
+        init_db(); db = SessionLocal(); wid = get_default_workspace_id(db)
+        record_event(db, workspace_id=wid, type="artifact.proposal_draft.created", source="test", title="Proposal ready", subject_type="artifact", subject_id="a1")
+        db.commit()
+        n = db.query(Notification).filter(Notification.kind == NotificationKind.proposal_ready).order_by(Notification.created_at.desc()).first()
+        assert n is not None; db.close()
+
+    def test_rule_quote_sow_maps_to_quote_sow_ready(self, client: TestClient):
+        init_db(); db = SessionLocal(); wid = get_default_workspace_id(db)
+        record_event(db, workspace_id=wid, type="artifact.quote_draft.created", source="test", title="Quote/SOW ready", subject_type="artifact", subject_id="a2")
+        db.commit()
+        n = db.query(Notification).filter(Notification.kind == NotificationKind.quote_sow_ready).order_by(Notification.created_at.desc()).first()
+        assert n is not None; db.close()
+
+    def test_decision_approved_only_creates_event_not_notification(self, client: TestClient):
+        init_db(); db = SessionLocal(); wid = get_default_workspace_id(db)
+        before = db.query(Notification).count()
+        record_event(db, workspace_id=wid, type="decision.approved", source="test", title="Decision approved", subject_type="decision", subject_id="d2")
+        db.commit()
+        after = db.query(Notification).count()
+        assert after == before; db.close()
+
+    # ── BE-03: Workspace isolation ──
+
+    def test_cannot_read_other_workspace_notification(self, client: TestClient):
+        init_db(); db = SessionLocal()
+        ws2 = Workspace(slug="nf-iso-read", name="WS2", is_default=False)
+        db.add(ws2); db.commit()
+        n2 = Notification(workspace_id=ws2.id, kind=NotificationKind.lead_created, title="WS2 Notif", severity=EventSeverity.info, status=NotificationReadStatus.unread)
+        db.add(n2); db.commit(); n2_id = n2.id; db.close()
+        r = client.post(f"/api/v1/admin/notifications/{n2_id}/read", json={}, headers=ADMIN)
+        assert r.status_code == 404
+
+    def test_cannot_archive_other_workspace_notification(self, client: TestClient):
+        init_db(); db = SessionLocal()
+        ws2 = Workspace(slug="nf-iso-arch", name="WS2", is_default=False)
+        db.add(ws2); db.commit()
+        n2 = Notification(workspace_id=ws2.id, kind=NotificationKind.lead_created, title="WS2 Arch", severity=EventSeverity.info, status=NotificationReadStatus.unread)
+        db.add(n2); db.commit(); n2_id = n2.id; db.close()
+        r = client.post(f"/api/v1/admin/notifications/{n2_id}/archive", json={}, headers=ADMIN)
+        assert r.status_code == 404
+
+    # ── BE-05: NotificationDelivery ──
+
+    def test_notification_creates_in_app_delivery(self, client: TestClient):
+        init_db(); db = SessionLocal(); wid = get_default_workspace_id(db)
+        record_event(db, workspace_id=wid, type="lead.created", source="test", title="Delivery test", subject_type="lead", subject_id="dl1")
+        db.commit()
+        n = db.query(Notification).order_by(Notification.created_at.desc()).first()
+        from app.models import NotificationDelivery, NotifDeliveryChannel, NotificationDeliveryStatus
+        d = db.query(NotificationDelivery).filter(NotificationDelivery.notification_id == n.id).first()
+        assert d is not None
+        assert d.channel == NotifDeliveryChannel.in_app
+        assert d.status == NotificationDeliveryStatus.delivered
+        assert d.attempt_count == 1
+        db.close()
