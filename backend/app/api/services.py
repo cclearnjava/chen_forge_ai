@@ -174,6 +174,33 @@ def create_risk_rule(service_id: str, req: dict, db: Session = Depends(get_db)):
     db.add(r); db.commit()
     return {"id": r.id, "title": r.title}
 
+@router.patch("/{service_id}/packages/{package_id}")
+def update_package(service_id: str, package_id: str, req: dict, db: Session = Depends(get_db)):
+    wid = get_current_workspace_id(db)
+    pkg = db.query(ServicePackage).filter(ServicePackage.id == package_id, ServicePackage.service_id == service_id, ServicePackage.workspace_id == wid).first()
+    if not pkg: raise HTTPException(status_code=404, detail="Package not found")
+    for k in ["name", "description", "price_min", "price_max", "currency", "duration", "sort_order"]:
+        if k in req: setattr(pkg, k, req[k])
+    db.commit(); return {"id": pkg.id, "name": pkg.name}
+
+@router.patch("/{service_id}/deliverables/{deliverable_id}")
+def update_deliverable(service_id: str, deliverable_id: str, req: dict, db: Session = Depends(get_db)):
+    wid = get_current_workspace_id(db)
+    d = db.query(ServiceDeliverable).filter(ServiceDeliverable.id == deliverable_id, ServiceDeliverable.service_id == service_id, ServiceDeliverable.workspace_id == wid).first()
+    if not d: raise HTTPException(status_code=404, detail="Deliverable not found")
+    for k in ["title", "description", "format", "sort_order"]:
+        if k in req: setattr(d, k, req[k])
+    db.commit(); return {"id": d.id, "title": d.title}
+
+@router.patch("/{service_id}/risk-rules/{rule_id}")
+def update_risk_rule(service_id: str, rule_id: str, req: dict, db: Session = Depends(get_db)):
+    wid = get_current_workspace_id(db)
+    r = db.query(ServiceRiskRule).filter(ServiceRiskRule.id == rule_id, ServiceRiskRule.service_id == service_id, ServiceRiskRule.workspace_id == wid).first()
+    if not r: raise HTTPException(status_code=404, detail="Risk rule not found")
+    for k in ["title", "description", "severity", "disqualifies", "suggested_response", "sort_order"]:
+        if k in req: setattr(r, k, req[k])
+    db.commit(); return {"id": r.id, "title": r.title}
+
 @router.delete("/{service_id}/packages/{package_id}")
 def delete_package(service_id: str, package_id: str, db: Session = Depends(get_db)):
     wid = get_current_workspace_id(db)
