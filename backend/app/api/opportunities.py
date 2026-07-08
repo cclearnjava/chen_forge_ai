@@ -777,7 +777,9 @@ def create_proposal_delivery_job(
         if cust:
             recipient = cust.owner_email
 
+    delivery_wid = inherit_workspace_id(opp, db) if opp else get_default_workspace_id(db)
     job = DeliveryJob(
+        workspace_id=delivery_wid,
         lead_id=opp.lead_id if opp else None,
         artifact_id=artifact_id,
         channel=DeliveryChannel.manual_copy,
@@ -790,6 +792,7 @@ def create_proposal_delivery_job(
     db.flush()
 
     db.add(AuditLog(
+        workspace_id=delivery_wid,
         lead_id=opp.lead_id if opp else None,
         actor=admin,
         action="proposal_delivery_job_created",
@@ -1035,7 +1038,9 @@ def create_quote_sow_delivery_job(
 
 发送后请回到系统点击 Mark sent。"""
 
+    qs_delivery_wid = inherit_workspace_id(opp, db) if opp else get_default_workspace_id(db)
     job = DeliveryJob(
+        workspace_id=qs_delivery_wid,
         lead_id=data["lead_id"], artifact_id=quote_id,
         channel=DeliveryChannel.manual_copy, recipient=recipient,
         subject=f"Quote / SOW Confirmation: {opp.title if opp else ''}",
@@ -1045,6 +1050,7 @@ def create_quote_sow_delivery_job(
     db.flush()
 
     db.add(AuditLog(
+        workspace_id=qs_delivery_wid,
         lead_id=data["lead_id"], actor=admin,
         action="quote_sow_delivery_job_created",
         details_json={

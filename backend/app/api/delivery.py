@@ -34,9 +34,9 @@ def create_delivery_job(
     db: Session = Depends(get_db),
     _admin: str = Depends(get_admin_email),
 ):
-    artifact = db.query(Artifact).filter(Artifact.id == req.artifact_id).first()
+    artifact = get_scoped_or_404(db, Artifact, req.artifact_id, label="Artifact")
     if not artifact:
-        raise HTTPException(status_code=404, detail="Artifact not found")
+        raise HTTPException(status_code=422, detail="Artifact not found")
     if artifact.lead_id != req.lead_id:
         raise HTTPException(status_code=400, detail="Artifact does not belong to this lead")
     if artifact.requires_approval:
@@ -126,7 +126,7 @@ def mark_delivery_job_sent(
     ))
 
     # BE-03: If this is a proposal delivery, write Conversation Message + proposal_sent AuditLog
-    artifact = db.query(Artifact).filter(Artifact.id == job.artifact_id).first()
+    artifact = get_scoped_or_404(db, Artifact, job.artifact_id, label="Artifact")
     if artifact and artifact.type == ArtifactType.proposal_draft:
         if artifact.opportunity_id:
             opp = db.query(Opportunity).filter(Opportunity.id == artifact.opportunity_id).first()
