@@ -119,3 +119,36 @@ class TestServiceCatalog:
         assert r2.status_code == 201
         r3 = client.get(f"/api/v1/admin/services/{sid}/risk-rules", headers=ADMIN)
         assert len(r3.json()["items"]) >= 1
+
+
+    def test_update_package(self, client: TestClient):
+        init_db()
+        client.post("/api/v1/admin/services/seed-defaults", headers=ADMIN)
+        r = client.get("/api/v1/admin/services", headers=ADMIN)
+        sid = r.json()["items"][0]["id"]
+        r2 = client.post(f"/api/v1/admin/services/{sid}/packages", json={"name": "Basic"}, headers=ADMIN)
+        pid = r2.json()["id"]
+        r3 = client.patch(f"/api/v1/admin/services/{sid}/packages/{pid}", json={"name": "Basic Plus"}, headers=ADMIN)
+        assert r3.status_code == 200
+        assert r3.json()["name"] == "Basic Plus"
+
+    def test_update_deliverable(self, client: TestClient):
+        init_db()
+        client.post("/api/v1/admin/services/seed-defaults", headers=ADMIN)
+        r = client.get("/api/v1/admin/services", headers=ADMIN)
+        sid = r.json()["items"][0]["id"]
+        r2 = client.post(f"/api/v1/admin/services/{sid}/deliverables", json={"title": "Report"}, headers=ADMIN)
+        did = r2.json()["id"]
+        r3 = client.patch(f"/api/v1/admin/services/{sid}/deliverables/{did}", json={"title": "Updated Report"}, headers=ADMIN)
+        assert r3.status_code == 200
+        assert r3.json()["title"] == "Updated Report"
+
+    def test_update_risk_rule(self, client: TestClient):
+        init_db()
+        client.post("/api/v1/admin/services/seed-defaults", headers=ADMIN)
+        r = client.get("/api/v1/admin/services", headers=ADMIN)
+        sid = r.json()["items"][0]["id"]
+        r2 = client.post(f"/api/v1/admin/services/{sid}/risk-rules", json={"title": "Data risk", "severity": "low"}, headers=ADMIN)
+        rid = r2.json()["id"]
+        r3 = client.patch(f"/api/v1/admin/services/{sid}/risk-rules/{rid}", json={"severity": "high"}, headers=ADMIN)
+        assert r3.status_code == 200
