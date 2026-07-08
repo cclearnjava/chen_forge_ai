@@ -148,5 +148,56 @@ def list_risk_rules(service_id: str, db: Session = Depends(get_db), _admin: str 
     return {"items": [{"id": r.id, "title": r.title, "description": r.description, "severity": r.severity.value if hasattr(r.severity, "value") else r.severity, "disqualifies": r.disqualifies, "suggested_response": r.suggested_response, "sort_order": r.sort_order} for r in items]}
 
 
+# ── Sub-resource mutations ──
+
+@router.post("/{service_id}/packages", status_code=201)
+def create_package(service_id: str, req: dict, db: Session = Depends(get_db)):
+    wid = get_current_workspace_id(db)
+    if not get_service_or_none(db, wid, service_id): raise HTTPException(status_code=404, detail="Service not found")
+    pkg = ServicePackage(workspace_id=wid, service_id=service_id, name=req["name"], description=req.get("description"), price_min=req.get("price_min"), price_max=req.get("price_max"), currency=req.get("currency", "CNY"), duration=req.get("duration"), sort_order=req.get("sort_order", 0))
+    db.add(pkg); db.commit()
+    return {"id": pkg.id, "name": pkg.name}
+
+@router.post("/{service_id}/deliverables", status_code=201)
+def create_deliverable(service_id: str, req: dict, db: Session = Depends(get_db)):
+    wid = get_current_workspace_id(db)
+    if not get_service_or_none(db, wid, service_id): raise HTTPException(status_code=404, detail="Service not found")
+    d = ServiceDeliverable(workspace_id=wid, service_id=service_id, package_id=req.get("package_id"), title=req["title"], description=req.get("description"), format=req.get("format"), sort_order=req.get("sort_order", 0))
+    db.add(d); db.commit()
+    return {"id": d.id, "title": d.title}
+
+@router.post("/{service_id}/risk-rules", status_code=201)
+def create_risk_rule(service_id: str, req: dict, db: Session = Depends(get_db)):
+    wid = get_current_workspace_id(db)
+    if not get_service_or_none(db, wid, service_id): raise HTTPException(status_code=404, detail="Service not found")
+    r = ServiceRiskRule(workspace_id=wid, service_id=service_id, title=req["title"], description=req.get("description"), severity=req.get("severity", "medium"), disqualifies=req.get("disqualifies", False), suggested_response=req.get("suggested_response"), sort_order=req.get("sort_order", 0))
+    db.add(r); db.commit()
+    return {"id": r.id, "title": r.title}
+
+@router.delete("/{service_id}/packages/{package_id}")
+def delete_package(service_id: str, package_id: str, db: Session = Depends(get_db)):
+    wid = get_current_workspace_id(db)
+    pkg = db.query(ServicePackage).filter(ServicePackage.id == package_id, ServicePackage.service_id == service_id, ServicePackage.workspace_id == wid).first()
+    if not pkg: raise HTTPException(status_code=404, detail="Package not found")
+    db.delete(pkg); db.commit()
+    return {"deleted": True}
+
+@router.delete("/{service_id}/deliverables/{deliverable_id}")
+def delete_deliverable(service_id: str, deliverable_id: str, db: Session = Depends(get_db)):
+    wid = get_current_workspace_id(db)
+    d = db.query(ServiceDeliverable).filter(ServiceDeliverable.id == deliverable_id, ServiceDeliverable.service_id == service_id, ServiceDeliverable.workspace_id == wid).first()
+    if not d: raise HTTPException(status_code=404, detail="Deliverable not found")
+    db.delete(d); db.commit()
+    return {"deleted": True}
+
+@router.delete("/{service_id}/risk-rules/{rule_id}")
+def delete_risk_rule(service_id: str, rule_id: str, db: Session = Depends(get_db)):
+    wid = get_current_workspace_id(db)
+    r = db.query(ServiceRiskRule).filter(ServiceRiskRule.id == rule_id, ServiceRiskRule.service_id == service_id, ServiceRiskRule.workspace_id == wid).first()
+    if not r: raise HTTPException(status_code=404, detail="Risk rule not found")
+    db.delete(r); db.commit()
+    return {"deleted": True}
+
+
 # Import at bottom to avoid circular
 from app.models import Service

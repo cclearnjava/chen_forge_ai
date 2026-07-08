@@ -87,3 +87,35 @@ class TestServiceCatalog:
         assert "ws2-svc" not in slugs
         r2 = client.get(f"/api/v1/admin/services/{svc2_id}", headers=ADMIN)
         assert r2.status_code == 404
+
+
+    def test_create_package(self, client: TestClient):
+        init_db()
+        client.post("/api/v1/admin/services/seed-defaults", headers=ADMIN)
+        r = client.get("/api/v1/admin/services", headers=ADMIN)
+        sid = r.json()["items"][0]["id"]
+        r2 = client.post(f"/api/v1/admin/services/{sid}/packages", json={"name": "PoC Package"}, headers=ADMIN)
+        assert r2.status_code == 201
+        r3 = client.get(f"/api/v1/admin/services/{sid}/packages", headers=ADMIN)
+        assert len(r3.json()["items"]) >= 1
+
+    def test_create_and_delete_deliverable(self, client: TestClient):
+        init_db()
+        client.post("/api/v1/admin/services/seed-defaults", headers=ADMIN)
+        r = client.get("/api/v1/admin/services", headers=ADMIN)
+        sid = r.json()["items"][0]["id"]
+        r2 = client.post(f"/api/v1/admin/services/{sid}/deliverables", json={"title": "PoC Report"}, headers=ADMIN)
+        assert r2.status_code == 201
+        did = r2.json()["id"]
+        r3 = client.delete(f"/api/v1/admin/services/{sid}/deliverables/{did}", headers=ADMIN)
+        assert r3.status_code == 200
+
+    def test_create_risk_rule(self, client: TestClient):
+        init_db()
+        client.post("/api/v1/admin/services/seed-defaults", headers=ADMIN)
+        r = client.get("/api/v1/admin/services", headers=ADMIN)
+        sid = r.json()["items"][0]["id"]
+        r2 = client.post(f"/api/v1/admin/services/{sid}/risk-rules", json={"title": "No data risk", "severity": "high", "disqualifies": True}, headers=ADMIN)
+        assert r2.status_code == 201
+        r3 = client.get(f"/api/v1/admin/services/{sid}/risk-rules", headers=ADMIN)
+        assert len(r3.json()["items"]) >= 1
