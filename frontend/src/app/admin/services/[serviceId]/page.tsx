@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import AdminShell from "@/components/admin/admin-shell";
@@ -17,15 +17,15 @@ export default function ServiceDetailPage() {
   const [saving, setSaving] = useState(false);
   const [unreadCount, setUnreadCount] = useState<number | undefined>();
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true);
     getService(id).then((s) => { setSvc(s); setForm({}); setLoading(false); })
       .catch((e) => { setError(e.message); setLoading(false); });
-  };
+  }, [id]);
 
   useEffect(() => {
     queueMicrotask(() => { load(); getNotificationSummary().then((s) => setUnreadCount(s.unread_count)).catch(() => {}); });
-  }, [id]);
+  }, [load]);
 
   const handleSave = async () => {
     setSaving(true);
