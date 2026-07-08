@@ -15,6 +15,7 @@ import DeliveryPanel from "@/components/admin/delivery-panel";
 import ProposalFeedbackComposer from "@/components/admin/proposal-feedback-composer";
 import StageBadge from "@/components/admin/stage-badge";
 import {
+  getCurrentWorkspace,
   getOpportunityCockpit,
   runProposalDraftAgent,
   runProposalFollowupAgent,
@@ -33,6 +34,11 @@ export default function OpportunityDetailPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [cockpit, setCockpit] = useState<AdminOpportunityCockpit | null>(null);
   const [retryKey, setRetryKey] = useState(0);
+  const [wsName, setWsName] = useState<string | undefined>();
+
+  useEffect(() => {
+    getCurrentWorkspace().then((ws) => setWsName(ws.name)).catch(() => {});
+  }, []);
 
   const doFetch = useCallback(async (id: string) => {
     setState("loading");
@@ -139,6 +145,7 @@ export default function OpportunityDetailPage() {
   return (
     <AdminShell
       active="opportunities"
+      workspaceName={wsName}
       eyebrow="Company Cockpit / Opportunity"
       title={opp.title}
       subtitle={`${cockpit.customer?.name || ""} · ${opp.desired_outcome || ""}`}
