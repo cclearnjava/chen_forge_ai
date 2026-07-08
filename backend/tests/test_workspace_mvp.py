@@ -147,3 +147,4 @@ class TestWorkspaceMvp:
         db.close()
         r = client.get(f"/api/v1/admin/customers/{cust2_id}", headers=ADMIN)
         assert r.status_code == 404
+
