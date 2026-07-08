@@ -979,6 +979,7 @@ def get_approved_quote_sow(
     db: Session = Depends(get_db),
     _admin: str = Depends(get_admin_email),
 ):
+    get_scoped_or_404(db, Opportunity, opportunity_id, label="Opportunity")
     try:
         data = find_latest_approved_quote_sow(db, opportunity_id)
     except ValueError as exc:
@@ -996,6 +997,7 @@ def create_quote_sow_delivery_job(
     db: Session = Depends(get_db),
     admin: str = Depends(get_admin_email),
 ):
+    get_scoped_or_404(db, Opportunity, opportunity_id, label="Opportunity")
     try:
         data = find_latest_approved_quote_sow(db, opportunity_id)
     except ValueError as exc:

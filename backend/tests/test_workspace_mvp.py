@@ -202,10 +202,19 @@ class TestWorkspaceMvp:
         db = SessionLocal()
         ws2 = Workspace(slug="other-ws-ap", name="Other", is_default=False)
         db.add(ws2); db.commit()
-        r = client.get(f"/api/v1/admin/opportunities/nonexistent-id/approved-proposal", headers=ADMIN)
+        opp2 = Opportunity(workspace_id=ws2.id, customer_id="x", title="WS2 AP", stage="lead")
+        db.add(opp2); db.commit()
+        opp2_id = opp2.id; db.close()
+        r = client.get(f"/api/v1/admin/opportunities/{opp2_id}/approved-proposal", headers=ADMIN)
         assert r.status_code == 404
 
     def test_approved_quote_sow_returns_404_for_other_workspace(self, client: TestClient):
         init_db()
-        r = client.get("/api/v1/admin/opportunities/nonexistent-id/approved-quote-sow", headers=ADMIN)
+        db = SessionLocal()
+        ws2 = Workspace(slug="other-ws-aqs", name="Other", is_default=False)
+        db.add(ws2); db.commit()
+        opp2 = Opportunity(workspace_id=ws2.id, customer_id="x", title="WS2 AQS", stage="lead")
+        db.add(opp2); db.commit()
+        opp2_id = opp2.id; db.close()
+        r = client.get(f"/api/v1/admin/opportunities/{opp2_id}/approved-quote-sow", headers=ADMIN)
         assert r.status_code == 404
