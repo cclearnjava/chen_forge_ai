@@ -33,7 +33,9 @@ def list_decisions(
     db: Session = Depends(get_db),
     _admin: str = Depends(get_admin_email),
 ):
+    wid = get_default_workspace_id(db)
     query = db.query(Decision)
+    query = query.filter((Decision.workspace_id == wid) | (Decision.workspace_id.is_(None)))
     if status:
         query = query.filter(Decision.status == status)
     items = query.order_by(Decision.created_at.desc()).all()
@@ -96,6 +98,7 @@ def _approve_customer_reply_decision(d: Decision, artifact: Artifact, opp: Oppor
     db.flush()
 
     db.add(AuditLog(
+        workspace_id=wid,
         lead_id=d.lead_id, actor=admin, action="decision_approved",
         details_json={
             "decision_id": d.id, "artifact_id": artifact.id,
@@ -113,6 +116,7 @@ def _approve_proposal_decision(d: Decision, artifact: Artifact, opp: Opportunity
     opp.next_step = "Review approved proposal with customer"
 
     db.add(AuditLog(
+        workspace_id=d.workspace_id or get_default_workspace_id(db),
         lead_id=d.lead_id, actor=admin, action="proposal_approved",
         details_json={
             "decision_id": d.id, "artifact_id": artifact.id,
@@ -131,6 +135,7 @@ def _approve_quote_decision(d: Decision, artifact: Artifact, opp: Opportunity,
     opp.next_step = "Review approved Quote/SOW and prepare customer confirmation"
 
     db.add(AuditLog(
+        workspace_id=d.workspace_id or get_default_workspace_id(db),
         lead_id=d.lead_id, actor=admin, action="quote_sow_approved",
         details_json={
             "decision_id": d.id, "artifact_id": artifact.id,
@@ -187,6 +192,7 @@ def defer_decision(
     d.resolved_at = dt.utcnow()
 
     db.add(AuditLog(
+        workspace_id=d.workspace_id or get_default_workspace_id(db),
         lead_id=d.lead_id,
         actor=admin,
         action="decision_deferred",
@@ -217,6 +223,7 @@ def request_rewrite(
 
     # Write AuditLog only — no DeliveryJob, no Message
     db.add(AuditLog(
+        workspace_id=d.workspace_id or get_default_workspace_id(db),
         lead_id=d.lead_id,
         actor=admin,
         action="decision_rewrite_requested",

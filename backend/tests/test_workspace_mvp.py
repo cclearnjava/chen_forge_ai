@@ -119,3 +119,31 @@ class TestWorkspaceMvp:
         log = db2.query(AuditLog).filter(AuditLog.action == "decision_approved").order_by(AuditLog.created_at.desc()).first()
         assert log is not None
         db2.close()
+
+    def test_admin_list_excludes_other_workspace_data(self, client: TestClient):
+        init_db()
+        db = SessionLocal()
+        ws2 = Workspace(slug="other-workspace", name="Other WS", is_default=False)
+        db.add(ws2)
+        db.commit()
+        cust2 = Customer(workspace_id=ws2.id, name="WS2 Customer", owner_email="ws2@test.com")
+        db.add(cust2)
+        db.commit()
+        db.close()
+        r = client.get("/api/v1/admin/customers", headers=ADMIN)
+        names = [c["name"] for c in r.json()["items"]]
+        assert "WS2 Customer" not in names
+
+    def test_admin_detail_returns_404_for_other_workspace(self, client: TestClient):
+        init_db()
+        db = SessionLocal()
+        ws2 = Workspace(slug="other-ws-2", name="Other WS 2", is_default=False)
+        db.add(ws2)
+        db.commit()
+        cust2 = Customer(workspace_id=ws2.id, name="WS2 Detail", owner_email="ws2d@test.com")
+        db.add(cust2)
+        db.commit()
+        cust2_id = cust2.id
+        db.close()
+        r = client.get(f"/api/v1/admin/customers/{cust2_id}", headers=ADMIN)
+        assert r.status_code == 404

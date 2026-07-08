@@ -88,6 +88,7 @@ def create_lifecycle_from_lead(db: Session, lead_id: str) -> dict:
     db.flush()
 
     db.add(AuditLog(
+        workspace_id=wid,
         lead_id=lead.id,
         actor="system:customer_lifecycle",
         action="customer_lifecycle_created",
