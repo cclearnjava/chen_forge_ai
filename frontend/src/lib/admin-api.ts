@@ -447,6 +447,54 @@ export async function archiveNotification(id: string): Promise<void> {
   await api(`/admin/notifications/${id}/archive`, { method: "POST" });
 }
 
+export interface ServiceOut {
+  id: string; workspace_id?: string | null; name: string; slug: string; status: string;
+  positioning: string | null; target_customer: string | null;
+  pain_points_json: Record<string, unknown> | null;
+  outcomes_json: Record<string, unknown> | null;
+  required_inputs_json: Record<string, unknown> | null;
+  success_criteria_json: Record<string, unknown> | null;
+  typical_duration: string | null; price_min: number | null; price_max: number | null;
+  currency: string; risk_notes: string | null;
+  created_at: string; updated_at: string;
+}
+
+export async function getServices(params?: { status?: string; q?: string }): Promise<{ items: ServiceOut[]; total: number }> {
+  const sp = new URLSearchParams();
+  if (params?.status) sp.set("status", params.status);
+  if (params?.q) sp.set("q", params.q);
+  const qs = sp.toString();
+  return api(`/admin/services${qs ? `?${qs}` : ""}`);
+}
+
+export async function getService(id: string): Promise<ServiceOut> {
+  return api(`/admin/services/${id}`);
+}
+
+export async function createService(input: Record<string, unknown>): Promise<ServiceOut> {
+  return api("/admin/services", { method: "POST", body: JSON.stringify(input) });
+}
+
+export async function updateService(id: string, input: Record<string, unknown>): Promise<ServiceOut> {
+  return api(`/admin/services/${id}`, { method: "PATCH", body: JSON.stringify(input) });
+}
+
+export async function deactivateService(id: string): Promise<ServiceOut> {
+  return api(`/admin/services/${id}/deactivate`, { method: "POST" });
+}
+
+export async function activateService(id: string): Promise<ServiceOut> {
+  return api(`/admin/services/${id}/activate`, { method: "POST" });
+}
+
+export async function archiveService(id: string): Promise<ServiceOut> {
+  return api(`/admin/services/${id}/archive`, { method: "POST" });
+}
+
+export async function seedDefaultServices(): Promise<{ count: number }> {
+  return api("/admin/services/seed-defaults", { method: "POST" });
+}
+
 export const stageLabels: Record<Stage, string> = {
   lead: "Lead",
   qualified: "Qualified",
