@@ -435,6 +435,18 @@ export async function getNotificationSummary(): Promise<NotificationSummaryOut> 
   return api("/admin/notifications/summary");
 }
 
+export async function markNotificationRead(id: string): Promise<void> {
+  await api(`/admin/notifications/${id}/read`, { method: "POST" });
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  await api("/admin/notifications/read-all", { method: "POST" });
+}
+
+export async function archiveNotification(id: string): Promise<void> {
+  await api(`/admin/notifications/${id}/archive`, { method: "POST" });
+}
+
 export const stageLabels: Record<Stage, string> = {
   lead: "Lead",
   qualified: "Qualified",

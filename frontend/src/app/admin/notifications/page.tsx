@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import AdminShell from "@/components/admin/admin-shell";
-import { getNotifications, getNotificationSummary, type NotificationOut, type NotificationSummaryOut } from "@/lib/admin-api";
+import { archiveNotification, getNotifications, getNotificationSummary, markAllNotificationsRead, markNotificationRead, type NotificationOut, type NotificationSummaryOut } from "@/lib/admin-api";
 
 const statusFilters = ["all", "unread", "read", "archived"] as const;
 const kindFilters = ["all", "approval_required", "delivery_action_required", "lead_created", "customer_reply_recorded", "delivery_sent", "proposal_ready", "quote_sow_ready"] as const;
@@ -26,17 +26,17 @@ export default function NotificationsPage() {
   useEffect(load, [status, kind]);
 
   const handleMarkRead = async (id: string) => {
-    await fetch(`/api/v1/admin/notifications/${id}/read`, { method: "POST", headers: { Authorization: "Bearer admin-dev-token" } });
+    await markNotificationRead(id);
     load();
   };
 
   const handleMarkAllRead = async () => {
-    await fetch("/api/v1/admin/notifications/read-all", { method: "POST", headers: { Authorization: "Bearer admin-dev-token" } });
+    await markAllNotificationsRead();
     load();
   };
 
   const handleArchive = async (id: string) => {
-    await fetch(`/api/v1/admin/notifications/${id}/archive`, { method: "POST", headers: { Authorization: "Bearer admin-dev-token" } });
+    await archiveNotification(id);
     load();
   };
 
