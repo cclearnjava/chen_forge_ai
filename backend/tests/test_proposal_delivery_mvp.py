@@ -49,8 +49,8 @@ class TestProposalDeliveryMvp:
         assert data["delivery_job"]["status"] == "draft"
         assert "PoC Proposal" in data["delivery_job"]["subject"]
 
-    def test_create_delivery_job_pdf_failure_returns_503(self, client: TestClient):
-        """When PDF renderer fails (no Playwright), return 503 and create no DeliveryJob."""
+    def test_create_delivery_job_succeeds_even_when_pdf_fails(self, client: TestClient):
+        """PDF render failure does NOT block delivery job creation — job is still created."""
         init_db()
         opp_id = _setup_approved_proposal(client)
         db = SessionLocal()

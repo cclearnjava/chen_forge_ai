@@ -705,7 +705,7 @@ def download_approved_proposal_pdf(
 
     try:
         pdf_bytes = render_approved_proposal_pdf(data)
-    except RuntimeError as exc:
+    except Exception as exc:
         raise HTTPException(status_code=503, detail=str(exc))
 
     db.add(AuditLog(
