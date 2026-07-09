@@ -553,6 +553,75 @@ export async function deleteServiceRiskRule(serviceId: string, ruleId: string): 
 }
 
 
+/* ── Workspace Knowledge Engine (P3) ── */
+
+export const KNOWLEDGE_SOURCE_TYPES = [
+  "manual", "faq", "case_study", "methodology", "pricing_rule",
+  "contract_boundary", "delivery_sop", "service_note", "external_doc",
+] as const;
+export type KnowledgeSourceType = (typeof KNOWLEDGE_SOURCE_TYPES)[number];
+export type KnowledgeStatus = "draft" | "active" | "archived";
+
+export interface KnowledgeSourceOut {
+  id: string; workspace_id?: string | null; name: string;
+  description: string | null; created_at: string; updated_at: string;
+}
+
+export interface KnowledgeItemOut {
+  id: string; workspace_id?: string | null;
+  source_id: string | null; service_id: string | null;
+  title: string; summary: string | null; content_markdown: string;
+  source_type: string; tags_json: string[]; status: string;
+  visibility: string; confidence: number | null;
+  metadata_json: Record<string, unknown> | null;
+  archived_at: string | null; created_at: string; updated_at: string;
+}
+
+export interface KnowledgeItemInput {
+  title: string; content_markdown: string; summary?: string | null;
+  source_type?: string; source_id?: string | null; service_id?: string | null;
+  tags_json?: string[]; status?: string; visibility?: string;
+  confidence?: number | null;
+}
+
+export async function getKnowledgeItems(params?: {
+  q?: string; status?: string; source_type?: string; tag?: string; service_id?: string;
+}): Promise<{ items: KnowledgeItemOut[]; total: number }> {
+  const sp = new URLSearchParams();
+  if (params?.q) sp.set("q", params.q);
+  if (params?.status) sp.set("status", params.status);
+  if (params?.source_type) sp.set("source_type", params.source_type);
+  if (params?.tag) sp.set("tag", params.tag);
+  if (params?.service_id) sp.set("service_id", params.service_id);
+  const qs = sp.toString();
+  return api(`/admin/knowledge${qs ? `?${qs}` : ""}`);
+}
+
+export async function getKnowledgeItem(id: string): Promise<KnowledgeItemOut> {
+  return api(`/admin/knowledge/${id}`);
+}
+
+export async function createKnowledgeItem(data: KnowledgeItemInput): Promise<KnowledgeItemOut> {
+  return api("/admin/knowledge", { method: "POST", body: JSON.stringify(data) });
+}
+
+export async function updateKnowledgeItem(id: string, data: Partial<KnowledgeItemInput>): Promise<KnowledgeItemOut> {
+  return api(`/admin/knowledge/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export async function archiveKnowledgeItem(id: string): Promise<KnowledgeItemOut> {
+  return api(`/admin/knowledge/${id}/archive`, { method: "POST" });
+}
+
+export async function getKnowledgeSources(): Promise<{ items: KnowledgeSourceOut[] }> {
+  return api("/admin/knowledge/sources");
+}
+
+export async function createKnowledgeSource(data: { name: string; description?: string | null }): Promise<KnowledgeSourceOut> {
+  return api("/admin/knowledge/sources", { method: "POST", body: JSON.stringify(data) });
+}
+
+
 export const stageLabels: Record<Stage, string> = {
   lead: "Lead",
   qualified: "Qualified",

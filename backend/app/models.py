@@ -325,6 +325,44 @@ class ServiceRiskRule(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
 
+# ── Workspace Knowledge Engine (P3) ──
+
+KNOWLEDGE_STATUSES = ("draft", "active", "archived")
+KNOWLEDGE_SOURCE_TYPES = (
+    "manual", "faq", "case_study", "methodology", "pricing_rule",
+    "contract_boundary", "delivery_sop", "service_note", "external_doc",
+)
+
+
+class KnowledgeSource(Base):
+    __tablename__ = "knowledge_sources"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    workspace_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+
+
+class KnowledgeItem(Base):
+    __tablename__ = "knowledge_items"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    workspace_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True)
+    source_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("knowledge_sources.id"), index=True)
+    service_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("services.id"), index=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    summary: Mapped[str | None] = mapped_column(Text)
+    content_markdown: Mapped[str] = mapped_column(Text, nullable=False)
+    source_type: Mapped[str] = mapped_column(String(40), default="manual", nullable=False, index=True)
+    tags_json: Mapped[list | None] = mapped_column(JSON, default=list)
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False, index=True)
+    visibility: Mapped[str] = mapped_column(String(20), default="internal", nullable=False)
+    confidence: Mapped[float | None] = mapped_column()
+    metadata_json: Mapped[dict | None] = mapped_column(JSON)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+
 
 class Lead(Base):
     __tablename__ = "leads"

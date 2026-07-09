@@ -1333,3 +1333,81 @@ h3 {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ── Knowledge Engine ── */
+
+.knowledge-editor {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  margin-bottom: 14px;
+  background: rgba(238, 241, 237, 0.5);
+}
+
+.knowledge-editor .subform-grid,
+.knowledge-editor .confirm-actions {
+  padding: 0 16px;
+}
+
+.knowledge-editor .confirm-actions {
+  padding-bottom: 16px;
+}
+
+.knowledge-list {
+  display: grid;
+  gap: 10px;
+}
+
+.knowledge-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(238, 241, 237, 0.55);
+}
+
+.knowledge-main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.knowledge-main strong {
+  font-size: 15px;
+}
+
+.knowledge-main small {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.knowledge-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.knowledge-tag {
+  color: var(--blueprint);
+}
+
+.knowledge-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.empty-state {
+  padding: 32px 16px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+  text-align: center;
+}

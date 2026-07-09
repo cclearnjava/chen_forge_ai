@@ -654,3 +654,94 @@ class ServiceDetailOut(ServiceOut):
     packages: list = Field(default_factory=list)
     deliverables: list = Field(default_factory=list)
     risk_rules: list = Field(default_factory=list)
+
+
+# ── Workspace Knowledge Engine (P3) ──
+
+from pydantic import field_validator
+from app.models import KNOWLEDGE_STATUSES, KNOWLEDGE_SOURCE_TYPES
+
+
+class KnowledgeSourceCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    description: str | None = None
+
+
+class KnowledgeSourceOut(BaseModel):
+    id: str; workspace_id: str | None = None
+    name: str; description: str | None = None
+    created_at: datetime; updated_at: datetime
+    model_config = {"from_attributes": True}
+
+
+class KnowledgeItemCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=255)
+    content_markdown: str = Field(..., min_length=1)
+    summary: str | None = None
+    source_type: str = "manual"
+    source_id: str | None = None
+    service_id: str | None = None
+    tags_json: list[str] = Field(default_factory=list)
+    status: str = "active"
+    visibility: str = "internal"
+    confidence: float | None = None
+    metadata_json: dict | None = None
+
+    @field_validator("status")
+    @classmethod
+    def _check_status(cls, v: str) -> str:
+        if v not in KNOWLEDGE_STATUSES:
+            raise ValueError(f"Invalid status: {v}")
+        return v
+
+    @field_validator("source_type")
+    @classmethod
+    def _check_source_type(cls, v: str) -> str:
+        if v not in KNOWLEDGE_SOURCE_TYPES:
+            raise ValueError(f"Invalid source_type: {v}")
+        return v
+
+
+class KnowledgeItemUpdate(BaseModel):
+    title: str | None = Field(None, min_length=1, max_length=255)
+    content_markdown: str | None = Field(None, min_length=1)
+    summary: str | None = None
+    source_type: str | None = None
+    source_id: str | None = None
+    service_id: str | None = None
+    tags_json: list[str] | None = None
+    status: str | None = None
+    visibility: str | None = None
+    confidence: float | None = None
+    metadata_json: dict | None = None
+
+    @field_validator("status")
+    @classmethod
+    def _check_status(cls, v: str | None) -> str | None:
+        if v is not None and v not in KNOWLEDGE_STATUSES:
+            raise ValueError(f"Invalid status: {v}")
+        return v
+
+    @field_validator("source_type")
+    @classmethod
+    def _check_source_type(cls, v: str | None) -> str | None:
+        if v is not None and v not in KNOWLEDGE_SOURCE_TYPES:
+            raise ValueError(f"Invalid source_type: {v}")
+        return v
+
+
+class KnowledgeItemOut(BaseModel):
+    id: str; workspace_id: str | None = None
+    source_id: str | None = None; service_id: str | None = None
+    title: str; summary: str | None = None; content_markdown: str
+    source_type: str; tags_json: list[str] = Field(default_factory=list)
+    status: str; visibility: str; confidence: float | None = None
+    metadata_json: dict | None = None
+    archived_at: datetime | None = None
+    created_at: datetime; updated_at: datetime
+    model_config = {"from_attributes": True}
+
+
+class KnowledgeItemListOut(BaseModel):
+    items: list[KnowledgeItemOut] = Field(default_factory=list)
+    total: int = 0
