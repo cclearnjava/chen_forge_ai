@@ -4,6 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import AdminShell from "@/components/admin/admin-shell";
+import ServiceSubResourcePanel from "@/components/admin/service-catalog/service-sub-resource-panel";
+import ServicePackageForm, { emptyPackageDraft, type PackageDraft } from "@/components/admin/service-catalog/service-package-form";
+import ServiceDeliverableForm, { emptyDeliverableDraft, type DeliverableDraft } from "@/components/admin/service-catalog/service-deliverable-form";
+import ServiceRiskRuleForm, { emptyRiskRuleDraft, type RiskRuleDraft } from "@/components/admin/service-catalog/service-risk-rule-form";
 import {
   activateService, archiveService, createServiceDeliverable, createServicePackage,
   createServiceRiskRule, deactivateService, deleteServiceDeliverable, deleteServicePackage,
@@ -12,6 +16,19 @@ import {
   updateServicePackage, updateServiceRiskRule,
   type ServiceDeliverableOut, type ServiceOut, type ServicePackageOut, type ServiceRiskRuleOut,
 } from "@/lib/admin-api";
+
+const numOrNull = (s: string): number | null => (s.trim() === "" ? null : Number(s));
+const intOr0 = (s: string): number => {
+  const n = parseInt(s, 10);
+  return Number.isNaN(n) ? 0 : n;
+};
+const numStr = (n: number | null | undefined): string => (n == null ? "" : String(n));
+const priceRange = (min: number | null, max: number | null): string => {
+  if (min == null && max == null) return "价格未设置";
+  const fmt = (v: number) => `¥${(v / 10000).toFixed(1)}w`;
+  if (min != null && max != null) return `${fmt(min)} - ${fmt(max)}`;
+  return fmt((min ?? max) as number);
+};
 
 export default function ServiceDetailPage() {
   const { serviceId } = useParams();
@@ -26,10 +43,6 @@ export default function ServiceDetailPage() {
   const [packages, setPackages] = useState<ServicePackageOut[]>([]);
   const [deliverables, setDeliverables] = useState<ServiceDeliverableOut[]>([]);
   const [riskRules, setRiskRules] = useState<ServiceRiskRuleOut[]>([]);
-  const [newPkg, setNewPkg] = useState(""); const [newDel, setNewDel] = useState(""); const [newRule, setNewRule] = useState("");
-  const [editId, setEditId] = useState<string | null>(null); const [editVal, setEditVal] = useState("");
-  const [confirmDel, setConfirmDel] = useState<string | null>(null);
-  const [subError, setSubError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -56,28 +69,6 @@ export default function ServiceDetailPage() {
     } catch (e: unknown) { setError(e instanceof Error ? e.message : "状态变更失败"); }
   };
 
-  const addPackage = async () => { if (!newPkg.trim()) return; await createServicePackage(id, { name: newPkg }); setNewPkg(""); const p = await getServicePackages(id); setPackages(p.items); };
-  const addDeliverable = async () => { if (!newDel.trim()) return; await createServiceDeliverable(id, { title: newDel }); setNewDel(""); const d = await getServiceDeliverables(id); setDeliverables(d.items); };
-  const addRiskRule = async () => { if (!newRule.trim()) return; await createServiceRiskRule(id, { title: newRule }); setNewRule(""); const r = await getServiceRiskRules(id); setRiskRules(r.items); };
-  const startEdit = (eid: string, val: string) => { setEditId(eid); setEditVal(val); };
-  const saveEdit = async (type: string, eid: string) => {
-    if (!editVal.trim()) return;
-    try {
-      if (type === "pkg") { await updateServicePackage(id, eid, { name: editVal }); setPackages((await getServicePackages(id)).items); }
-      else if (type === "del") { await updateServiceDeliverable(id, eid, { title: editVal }); setDeliverables((await getServiceDeliverables(id)).items); }
-      else { await updateServiceRiskRule(id, eid, { title: editVal }); setRiskRules((await getServiceRiskRules(id)).items); }
-      setEditId(null); setSubError(null);
-    } catch (e: unknown) { setSubError(e instanceof Error ? e.message : "编辑失败"); }
-  };
-  const confirmRemove = async (type: string, rid: string) => {
-    try {
-      if (type === "pkg") { await deleteServicePackage(id, rid); setPackages(packages.filter(p => p.id !== rid)); }
-      else if (type === "del") { await deleteServiceDeliverable(id, rid); setDeliverables(deliverables.filter(d => d.id !== rid)); }
-      else { await deleteServiceRiskRule(id, rid); setRiskRules(riskRules.filter(r => r.id !== rid)); }
-      setConfirmDel(null); setSubError(null);
-    } catch (e: unknown) { setSubError(e instanceof Error ? e.message : "删除失败"); }
-  };
-
   const statusLabels: Record<string, string> = { active: "已启用", inactive: "已停用", draft: "草稿", archived: "已归档" };
   const sevLabels: Record<string, string> = { low: "低", medium: "中", high: "高", critical: "严重" };
 
@@ -99,7 +90,7 @@ export default function ServiceDetailPage() {
       {error && <p className="error-msg">{error}</p>}
 
       <section className="service-summary">
-        <span>{svc.price_min ? `¥${(svc.price_min/10000).toFixed(1)}w - ¥${(svc.price_max! /10000).toFixed(1)}w` : "价格未设置"}</span>
+        <span>{priceRange(svc.price_min, svc.price_max)}</span>
         <span>{svc.typical_duration || "周期未设置"}</span>
         <span>{svc.risk_notes ? svc.risk_notes.slice(0, 80) : "无风险说明"}</span>
         <span>更新于 {new Date(svc.updated_at).toLocaleDateString()}</span>
@@ -122,7 +113,7 @@ export default function ServiceDetailPage() {
             <dl>
               <div><dt>目标客户</dt><dd>{svc.target_customer || "N/A"}</dd></div>
               <div><dt>周期</dt><dd>{svc.typical_duration || "N/A"}</dd></div>
-              <div><dt>价格</dt><dd>{svc.price_min ? `¥${(svc.price_min/10000).toFixed(1)}w - ¥${(svc.price_max! /10000).toFixed(1)}w` : "N/A"}</dd></div>
+              <div><dt>价格</dt><dd>{priceRange(svc.price_min, svc.price_max)}</dd></div>
               <div><dt>风险说明</dt><dd>{svc.risk_notes || "N/A"}</dd></div>
             </dl>
           )}
@@ -132,74 +123,82 @@ export default function ServiceDetailPage() {
       </section>
 
       <section className="detail-grid">
-        <article className="subresource-panel">
-          <div className="panel-heading"><h2>服务包</h2></div>
-          {subError && <p className="error-msg">{subError}</p>}
-          <div className="subresource-form"><input value={newPkg} onChange={(e) => setNewPkg(e.target.value)} placeholder="新增服务包名称" /><button className="button primary small" onClick={addPackage}>新增</button></div>
-          <div className="subresource-list">
-            {packages.map((p) => (
-              <div key={p.id} className="subresource-item">
-                {confirmDel === p.id ? (
-                  <span className="confirm-actions">确认删除「{p.name}」？<button className="button primary small" onClick={() => confirmRemove("pkg", p.id)}>确认</button><button className="button ghost small" onClick={() => setConfirmDel(null)}>取消</button></span>
-                ) : editId === p.id ? (
-                  <span className="subresource-actions"><input value={editVal} onChange={(e) => setEditVal(e.target.value)} /><button className="button primary small" onClick={() => saveEdit("pkg", p.id)}>保存</button><button className="button ghost small" onClick={() => setEditId(null)}>取消</button></span>
-                ) : (
-                  <span className="subresource-actions">
-                    <strong>{p.name}</strong>
-                    {p.description && <small>{p.description.slice(0, 60)}</small>}
-                    {p.price_min && <small>¥{(p.price_min/10000).toFixed(1)}w-¥{(p.price_max||0)/10000}w</small>}
-                    <span><button className="button ghost small" onClick={() => startEdit(p.id, p.name)}>编辑</button><button className="button ghost small" onClick={() => setConfirmDel(p.id)}>删除</button></span>
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-        </article>
+        <ServiceSubResourcePanel<ServicePackageOut, PackageDraft>
+          title="服务包"
+          addLabel="新增服务包"
+          items={packages}
+          emptyDraft={emptyPackageDraft}
+          getId={(p) => p.id}
+          getLabel={(p) => p.name}
+          isValid={(d) => d.name.trim() !== ""}
+          toDraft={(p) => ({ name: p.name, description: p.description ?? "", price_min: numStr(p.price_min), price_max: numStr(p.price_max), duration: p.duration ?? "", currency: p.currency || "CNY", sort_order: numStr(p.sort_order) })}
+          renderForm={(draft, set) => <ServicePackageForm draft={draft} set={set} />}
+          renderItem={(p) => (
+            <>
+              <strong>{p.name}</strong>
+              {p.description && <small>{p.description.slice(0, 60)}</small>}
+              <span className="subresource-meta">
+                <span>{priceRange(p.price_min, p.price_max)}</span>
+                {p.duration && <span>{p.duration}</span>}
+                <span>#{p.sort_order}</span>
+              </span>
+            </>
+          )}
+          onCreate={async (d) => { await createServicePackage(id, { name: d.name.trim(), description: d.description || null, price_min: numOrNull(d.price_min), price_max: numOrNull(d.price_max), duration: d.duration || null, currency: d.currency || "CNY", sort_order: intOr0(d.sort_order) }); setPackages((await getServicePackages(id)).items); }}
+          onUpdate={async (pid, d) => { await updateServicePackage(id, pid, { name: d.name.trim(), description: d.description || null, price_min: numOrNull(d.price_min), price_max: numOrNull(d.price_max), duration: d.duration || null, currency: d.currency || "CNY", sort_order: intOr0(d.sort_order) }); setPackages((await getServicePackages(id)).items); }}
+          onDelete={async (pid) => { await deleteServicePackage(id, pid); setPackages((await getServicePackages(id)).items); }}
+        />
 
-        <article className="subresource-panel">
-          <div className="panel-heading"><h2>交付物</h2></div>
-          <div className="subresource-form"><input value={newDel} onChange={(e) => setNewDel(e.target.value)} placeholder="新增交付物标题" /><button className="button primary small" onClick={addDeliverable}>新增</button></div>
-          <div className="subresource-list">
-            {deliverables.map((d) => (
-              <div key={d.id} className="subresource-item">
-                {confirmDel === d.id ? (
-                  <span className="confirm-actions">确认删除「{d.title}」？<button className="button primary small" onClick={() => confirmRemove("del", d.id)}>确认</button><button className="button ghost small" onClick={() => setConfirmDel(null)}>取消</button></span>
-                ) : editId === d.id ? (
-                  <span className="subresource-actions"><input value={editVal} onChange={(e) => setEditVal(e.target.value)} /><button className="button primary small" onClick={() => saveEdit("del", d.id)}>保存</button><button className="button ghost small" onClick={() => setEditId(null)}>取消</button></span>
-                ) : (
-                  <span className="subresource-actions">
-                    <strong>{d.title}</strong>
-                    {d.format && <small>{d.format}</small>}
-                    <span><button className="button ghost small" onClick={() => startEdit(d.id, d.title)}>编辑</button><button className="button ghost small" onClick={() => setConfirmDel(d.id)}>删除</button></span>
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-        </article>
+        <ServiceSubResourcePanel<ServiceDeliverableOut, DeliverableDraft>
+          title="交付物"
+          addLabel="新增交付物"
+          items={deliverables}
+          emptyDraft={emptyDeliverableDraft}
+          getId={(d) => d.id}
+          getLabel={(d) => d.title}
+          isValid={(d) => d.title.trim() !== ""}
+          toDraft={(d) => ({ title: d.title, description: d.description ?? "", format: d.format ?? "", sort_order: numStr(d.sort_order) })}
+          renderForm={(draft, set) => <ServiceDeliverableForm draft={draft} set={set} />}
+          renderItem={(d) => (
+            <>
+              <strong>{d.title}</strong>
+              {d.description && <small>{d.description.slice(0, 60)}</small>}
+              <span className="subresource-meta">
+                {d.format && <span>{d.format}</span>}
+                <span>#{d.sort_order}</span>
+              </span>
+            </>
+          )}
+          onCreate={async (d) => { await createServiceDeliverable(id, { title: d.title.trim(), description: d.description || null, format: d.format || null, sort_order: intOr0(d.sort_order) }); setDeliverables((await getServiceDeliverables(id)).items); }}
+          onUpdate={async (did, d) => { await updateServiceDeliverable(id, did, { title: d.title.trim(), description: d.description || null, format: d.format || null, sort_order: intOr0(d.sort_order) }); setDeliverables((await getServiceDeliverables(id)).items); }}
+          onDelete={async (did) => { await deleteServiceDeliverable(id, did); setDeliverables((await getServiceDeliverables(id)).items); }}
+        />
 
-        <article className="subresource-panel">
-          <div className="panel-heading"><h2>风险规则</h2></div>
-          <div className="subresource-form"><input value={newRule} onChange={(e) => setNewRule(e.target.value)} placeholder="新增风险规则标题" /><button className="button primary small" onClick={addRiskRule}>新增</button></div>
-          <div className="subresource-list">
-            {riskRules.map((r) => (
-              <div key={r.id} className="subresource-item">
-                {confirmDel === r.id ? (
-                  <span className="confirm-actions">确认删除「{r.title}」？<button className="button primary small" onClick={() => confirmRemove("rule", r.id)}>确认</button><button className="button ghost small" onClick={() => setConfirmDel(null)}>取消</button></span>
-                ) : editId === r.id ? (
-                  <span className="subresource-actions"><input value={editVal} onChange={(e) => setEditVal(e.target.value)} /><button className="button primary small" onClick={() => saveEdit("rule", r.id)}>保存</button><button className="button ghost small" onClick={() => setEditId(null)}>取消</button></span>
-                ) : (
-                  <span className="subresource-actions">
-                    <strong>{r.title}</strong>
-                    <span className={`severity-badge severity-${r.severity}`}>{sevLabels[r.severity] || r.severity}</span>
-                    {r.disqualifies && <span className="severity-badge severity-critical">不建议承接</span>}
-                    <span><button className="button ghost small" onClick={() => startEdit(r.id, r.title)}>编辑</button><button className="button ghost small" onClick={() => setConfirmDel(r.id)}>删除</button></span>
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-        </article>
+        <ServiceSubResourcePanel<ServiceRiskRuleOut, RiskRuleDraft>
+          title="风险规则"
+          addLabel="新增风险规则"
+          items={riskRules}
+          emptyDraft={emptyRiskRuleDraft}
+          getId={(r) => r.id}
+          getLabel={(r) => r.title}
+          isValid={(d) => d.title.trim() !== ""}
+          toDraft={(r) => ({ title: r.title, description: r.description ?? "", severity: r.severity, disqualifies: r.disqualifies, suggested_response: r.suggested_response ?? "", sort_order: numStr(r.sort_order) })}
+          renderForm={(draft, set) => <ServiceRiskRuleForm draft={draft} set={set} />}
+          renderItem={(r) => (
+            <>
+              <strong>{r.title}</strong>
+              <span className="subresource-meta">
+                <span className={`severity-badge severity-${r.severity}`}>{sevLabels[r.severity] || r.severity}</span>
+                {r.disqualifies && <span className="severity-badge severity-critical">不建议承接</span>}
+                <span>#{r.sort_order}</span>
+              </span>
+              {r.suggested_response && <small>{r.suggested_response.slice(0, 60)}</small>}
+            </>
+          )}
+          onCreate={async (d) => { await createServiceRiskRule(id, { title: d.title.trim(), description: d.description || null, severity: d.severity, disqualifies: d.disqualifies, suggested_response: d.suggested_response || null, sort_order: intOr0(d.sort_order) }); setRiskRules((await getServiceRiskRules(id)).items); }}
+          onUpdate={async (rid, d) => { await updateServiceRiskRule(id, rid, { title: d.title.trim(), description: d.description || null, severity: d.severity, disqualifies: d.disqualifies, suggested_response: d.suggested_response || null, sort_order: intOr0(d.sort_order) }); setRiskRules((await getServiceRiskRules(id)).items); }}
+          onDelete={async (rid) => { await deleteServiceRiskRule(id, rid); setRiskRules((await getServiceRiskRules(id)).items); }}
+        />
       </section>
     </AdminShell>
   );
