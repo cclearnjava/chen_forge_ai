@@ -2,8 +2,8 @@
 Customer / Contact / Conversation / Message, then record Event + Notification (P5).
 
 Workspace isolation: everything is scoped to connector.workspace_id.
-Contact matching (MVP): email only. phone / external_user_id are preserved in
-raw_payload_json for audit but not used as match keys yet.
+Contact matching: fixed priority external_user_id(+provider) → email → phone,
+all workspace-scoped. Empty identity fields are backfilled on any match.
 Fail-closed: caller (API) owns the transaction; any exception rolls back.
 """
 
