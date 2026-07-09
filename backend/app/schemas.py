@@ -745,3 +745,88 @@ class KnowledgeItemOut(BaseModel):
 class KnowledgeItemListOut(BaseModel):
     items: list[KnowledgeItemOut] = Field(default_factory=list)
     total: int = 0
+
+
+# ── External Connector (P5) ──
+
+_CONNECTOR_PROVIDERS = ("mock", "email", "feishu", "wechat_work")
+_CONNECTOR_STATUSES = ("active", "paused", "disabled")
+
+
+class ExternalConnectorCreate(BaseModel):
+    provider: str = "mock"
+    name: str = Field(..., min_length=1, max_length=120)
+    config_json: dict | None = None
+    secret_ref: str | None = None
+
+    @field_validator("provider")
+    @classmethod
+    def _check_provider(cls, v: str) -> str:
+        if v not in _CONNECTOR_PROVIDERS:
+            raise ValueError(f"Invalid provider: {v}")
+        return v
+
+
+class ExternalConnectorUpdate(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=120)
+    status: str | None = None
+    config_json: dict | None = None
+    secret_ref: str | None = None
+
+    @field_validator("status")
+    @classmethod
+    def _check_status(cls, v: str | None) -> str | None:
+        if v is not None and v not in _CONNECTOR_STATUSES:
+            raise ValueError(f"Invalid status: {v}")
+        return v
+
+
+class ExternalConnectorOut(BaseModel):
+    id: str; workspace_id: str | None = None
+    provider: str; name: str; status: str
+    config_json: dict | None = None
+    secret_ref: str | None = None
+    webhook_token: str | None = None
+    webhook_path: str | None = None
+    last_received_at: datetime | None = None
+    created_at: datetime; updated_at: datetime
+    model_config = {"from_attributes": True}
+
+
+class InboundMessageSenderIn(BaseModel):
+    external_user_id: str | None = None
+    name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+
+
+class InboundMessageRecipientIn(BaseModel):
+    address: str | None = None
+
+
+class InboundMessageCreateIn(BaseModel):
+    external_message_id: str = Field(..., min_length=1)
+    external_thread_id: str | None = None
+    sender: InboundMessageSenderIn
+    recipient: InboundMessageRecipientIn | None = None
+    body_markdown: str = Field(..., min_length=1)
+    occurred_at: datetime | None = None
+    raw_payload: dict | None = None
+
+    @field_validator("sender")
+    @classmethod
+    def _sender_identifiable(cls, v: InboundMessageSenderIn) -> InboundMessageSenderIn:
+        if not (v.email or v.phone or v.external_user_id):
+            raise ValueError("sender must include email, phone, or external_user_id")
+        return v
+
+
+class InboundMessageCreateOut(BaseModel):
+    deduplicated: bool = False
+    connector_id: str
+    customer: dict | None = None
+    contact: dict | None = None
+    conversation: dict | None = None
+    message: dict | None = None
+    event_id: str | None = None
+    notification_id: str | None = None

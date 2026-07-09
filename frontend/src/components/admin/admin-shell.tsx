@@ -10,6 +10,7 @@ const navItems = [
   { href: "/admin/notifications", label: "Notifications", mark: "ⓘ", key: "notifications" },
   { href: "/admin/services", label: "Services", mark: "◎", key: "services" },
   { href: "/admin/knowledge", label: "Knowledge", mark: "❋", key: "knowledge" },
+  { href: "/admin/connectors", label: "Connectors", mark: "⇄", key: "connectors" },
 ];
 
 export default function AdminShell({

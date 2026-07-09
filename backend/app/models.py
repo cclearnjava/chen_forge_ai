@@ -460,6 +460,9 @@ class Message(Base):
     body_markdown: Mapped[str] = mapped_column(Text, nullable=False)
     source: Mapped[str] = mapped_column(String(100), nullable=False)
     external_message_id: Mapped[str | None] = mapped_column(String(255))
+    external_connector_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("external_connectors.id"), index=True)
+    external_thread_id: Mapped[str | None] = mapped_column(String(255), index=True)
+    raw_payload_json: Mapped[dict | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
     conversation: Mapped["Conversation"] = relationship(back_populates="messages")
@@ -703,3 +706,33 @@ class AuditLog(Base):
     action: Mapped[str] = mapped_column(String(100), nullable=False)
     details_json: Mapped[dict | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+
+# ── External Connector (P5) ──
+
+class ExternalConnectorProvider(str, enum.Enum):
+    mock = "mock"
+    email = "email"
+    feishu = "feishu"
+    wechat_work = "wechat_work"
+
+
+class ExternalConnectorStatus(str, enum.Enum):
+    active = "active"
+    paused = "paused"
+    disabled = "disabled"
+
+
+class ExternalConnector(Base):
+    __tablename__ = "external_connectors"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    workspace_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True, nullable=False)
+    provider: Mapped[ExternalConnectorProvider] = mapped_column(SAEnum(ExternalConnectorProvider), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    status: Mapped[ExternalConnectorStatus] = mapped_column(SAEnum(ExternalConnectorStatus), default=ExternalConnectorStatus.active, nullable=False, index=True)
+    config_json: Mapped[dict | None] = mapped_column(JSON, default=dict)
+    secret_ref: Mapped[str | None] = mapped_column(String(255))
+    webhook_token: Mapped[str | None] = mapped_column(String(120), unique=True, index=True)
+    last_received_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)

@@ -10,6 +10,7 @@ from app.models import (
 NOTIFICATION_RULES = {
     "lead.created": ("lead_created", EventSeverity.info, "新线索"),
     "message.customer_recorded": ("customer_reply_recorded", EventSeverity.info, "客户回复"),
+    "external_message.received": ("customer_reply_recorded", EventSeverity.info, "新客户消息"),
     "decision.waiting": ("approval_required", EventSeverity.warning, "待审批"),
     "artifact.proposal_draft.created": ("proposal_ready", EventSeverity.info, "Proposal 就绪"),
     "artifact.quote_draft.created": ("quote_sow_ready", EventSeverity.info, "Quote/SOW 就绪"),

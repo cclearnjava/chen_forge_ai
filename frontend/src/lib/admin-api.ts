@@ -622,6 +622,59 @@ export async function createKnowledgeSource(data: { name: string; description?: 
 }
 
 
+/* ── External Connectors (P5) ── */
+
+export type ExternalConnectorProvider = "mock" | "email" | "feishu" | "wechat_work";
+export type ExternalConnectorStatus = "active" | "paused" | "disabled";
+
+export interface ExternalConnectorOut {
+  id: string; workspace_id?: string | null;
+  provider: string; name: string; status: string;
+  config_json: Record<string, unknown> | null; secret_ref: string | null;
+  webhook_token: string | null; webhook_path: string | null;
+  last_received_at: string | null; created_at: string; updated_at: string;
+}
+
+export interface InboundMessageResult {
+  deduplicated: boolean;
+  connector_id: string;
+  customer: { id: string; name: string } | null;
+  contact: { id: string; email: string | null } | null;
+  conversation: { id: string; title: string } | null;
+  message: { id: string; source: string; body_markdown: string } | null;
+  event_id: string | null;
+  notification_id: string | null;
+}
+
+export interface MockInboundInput {
+  external_message_id: string;
+  external_thread_id?: string;
+  sender: { name?: string; email?: string; phone?: string; external_user_id?: string };
+  body_markdown: string;
+  raw_payload?: Record<string, unknown>;
+}
+
+export async function getConnectors(): Promise<{ items: ExternalConnectorOut[]; total: number }> {
+  return api("/admin/connectors");
+}
+
+export async function createConnector(data: {
+  provider: string; name: string; config_json?: Record<string, unknown>;
+}): Promise<ExternalConnectorOut> {
+  return api("/admin/connectors", { method: "POST", body: JSON.stringify(data) });
+}
+
+export async function updateConnector(id: string, data: {
+  name?: string; status?: string; config_json?: Record<string, unknown>;
+}): Promise<ExternalConnectorOut> {
+  return api(`/admin/connectors/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
+export async function sendMockInboundMessage(webhookToken: string, payload: MockInboundInput): Promise<InboundMessageResult> {
+  return api(`/connectors/${webhookToken}/inbound`, { method: "POST", body: JSON.stringify(payload) });
+}
+
+
 export const stageLabels: Record<Stage, string> = {
   lead: "Lead",
   qualified: "Qualified",
