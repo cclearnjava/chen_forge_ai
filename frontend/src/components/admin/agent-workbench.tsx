@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import type { ArtifactOut, AgentRunOut } from "@/lib/admin-api";
+import type { ArtifactOut, AgentRunOut, CitationPack } from "@/lib/admin-api";
+import CitationPackView from "@/components/admin/citation-pack";
 
 type ContextUsage = {
   service_hit_count?: number;
@@ -47,6 +48,7 @@ export default function AgentWorkbench({
   const commReview = findArtifact(artifacts, "commercial_review");
 
   const contextUsage = (draft?.content_json?.context_usage as ContextUsage | undefined) ?? undefined;
+  const citationPack = (draft?.content_json?.citations as CitationPack | undefined) ?? null;
 
   if (!draft && !review && !proposal && !followupReply && !objection && !nextStep && !quote && !sow && !commReview) {
     return (
@@ -109,6 +111,8 @@ export default function AgentWorkbench({
           )}
         </article>
       )}
+
+      <CitationPackView citations={citationPack} />
 
       {questions?.content_json && (
         <article className="workbench-card">

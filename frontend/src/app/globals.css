@@ -1477,6 +1477,88 @@ h3 {
 
 .document-error { color: var(--copper-dark); }
 
+/* ── Citation Pack ── */
+
+.citation-pack {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(238, 241, 237, 0.5);
+  margin-bottom: 14px;
+}
+
+.citation-pack h3 {
+  font-size: 16px;
+  margin-bottom: 10px;
+}
+
+.citation-list {
+  display: grid;
+  gap: 8px;
+}
+
+.citation-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.citation-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.citation-main strong { font-size: 14px; }
+
+.citation-excerpt {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.citation-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.citation-reason-tag {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  border: 1px solid var(--line);
+  background: rgba(40, 94, 115, 0.08);
+  color: var(--blueprint);
+}
+
+.citation-empty {
+  padding: 16px;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.citation-empty a {
+  display: inline-block;
+  margin-left: 8px;
+  color: var(--blueprint);
+  text-decoration: underline;
+}
+
+.citation-empty a:hover { color: var(--copper-dark); }
+
 .context-usage-card .context-usage-counts {
   display: flex;
   gap: 24px;

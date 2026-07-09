@@ -62,6 +62,7 @@ def run_sales_reply_workflow(db: Session, opportunity_id: str) -> dict:
     opp = ctx["opportunity"]
     lead_id = ctx["lead_id"]
     context_usage = ctx.get("usage", {})
+    citation_pack = ctx.get("citation_pack", {})
 
     # 2. Upsert sales_agent profile
     sales_wid = opp.workspace_id or get_default_workspace_id(db)
@@ -100,7 +101,7 @@ def run_sales_reply_workflow(db: Session, opportunity_id: str) -> dict:
         artifact_type=ArtifactType.customer_reply_draft,
         title="客户回复草稿",
         content_markdown=reply_md,
-        content_json={"reply": reply_md, "discovery_questions": questions, "context_usage": context_usage},
+        content_json={"reply": reply_md, "discovery_questions": questions, "context_usage": context_usage, "citations": citation_pack},
         model="mock-sales-agent-v1",
         prompt_version="sales_reply.v1",
         requires_approval=True,
@@ -129,6 +130,8 @@ def run_sales_reply_workflow(db: Session, opportunity_id: str) -> dict:
         "questions_artifact_id": questions_artifact.id,
         "discovery_questions_count": len(questions),
         "context_usage": context_usage,
+        "citation_count": citation_pack.get("hit_count", 0),
+        "retriever_version": citation_pack.get("retriever_version"),
     }
 
     # Record context_pack.built event (no notification rule → event only)

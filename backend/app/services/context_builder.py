@@ -9,35 +9,14 @@ from app.models import ServiceRiskRule
 from app.services.agent_context import build_opportunity_agent_context
 from app.services.service_catalog import list_services
 from app.services.knowledge import list_knowledge_items
+from app.services.knowledge_retriever import retrieve_knowledge_for_sales_reply
+from app.services.text_utils import as_text_list, bigrams, overlap_score
 
 CONTEXT_BUILDER_VERSION = "context_builder.sales_reply.v1"
 MAX_SERVICES = 3
 MAX_KNOWLEDGE = 5
 EXCERPT_LEN = 200
 KNOWLEDGE_SERVICE_LINK_BOOST = 5
-
-
-def _bigrams(s: str) -> set[str]:
-    s = s.replace(" ", "")
-    return {s[i:i + 2] for i in range(len(s) - 1)}
-
-
-def _overlap_score(text: str, hay: str) -> int:
-    """Deterministic relevance: shared whitespace tokens (latin/tags) + CJK bigram overlap."""
-    if not text or not hay:
-        return 0
-    t, h = text.lower(), hay.lower()
-    tset = {w for w in t.split() if len(w) >= 2}
-    hset = {w for w in h.split() if len(w) >= 2}
-    score = len(tset & hset) * 2
-    score += len(_bigrams(t) & _bigrams(h))
-    return score
-
-
-def _as_text_list(v) -> str:
-    if isinstance(v, list):
-        return " ".join(str(x) for x in v)
-    return ""
 
 
 def _opportunity_haystack(opp, messages) -> str:
@@ -49,9 +28,9 @@ def _opportunity_haystack(opp, messages) -> str:
 
 def _match_services(db: Session, wid: str, text: str) -> tuple[list, int]:
     services = list_services(db, wid, status="active")
-    scored = [(s, _overlap_score(text, " ".join(filter(None, [
+    scored = [(s, overlap_score(text, " ".join(filter(None, [
         s.name, s.positioning, s.target_customer,
-        _as_text_list(s.pain_points_json), _as_text_list(s.outcomes_json),
+        as_text_list(s.pain_points_json), as_text_list(s.outcomes_json),
     ])))) for s in services]
     genuine = sorted([p for p in scored if p[1] > 0], key=lambda p: p[1], reverse=True)
     if genuine:
@@ -59,22 +38,6 @@ def _match_services(db: Session, wid: str, text: str) -> tuple[list, int]:
         return matched, len(matched)
     # Fail-soft fallback: show top active services as candidates, hit_count = 0
     return services[:MAX_SERVICES], 0
-
-
-def _match_knowledge(db: Session, wid: str, text: str, matched_service_ids: list[str]) -> tuple[list, int]:
-    items = list_knowledge_items(db, wid, status="active")
-    scored = []
-    for it in items:
-        base = _overlap_score(text, " ".join(filter(None, [
-            it.title, it.summary, it.content_markdown, _as_text_list(it.tags_json),
-        ])))
-        if it.service_id and it.service_id in matched_service_ids:
-            base += KNOWLEDGE_SERVICE_LINK_BOOST
-        if base > 0:
-            scored.append((it, base))
-    scored.sort(key=lambda p: p[1], reverse=True)
-    matched = [it for it, _ in scored[:MAX_KNOWLEDGE]]
-    return matched, len(matched)
 
 
 def _service_dict(s) -> dict:
@@ -131,11 +94,29 @@ def build_sales_reply_context_pack(db: Session, opportunity_id: str) -> dict:
     text = _opportunity_haystack(opp, messages)
     services, service_hits = _match_services(db, wid, text)
     service_ids = [s.id for s in services]
-    knowledge, knowledge_hits = _match_knowledge(db, wid, text, service_ids)
-    risk_notes = _collect_risk_notes(db, wid, services, knowledge)
+
+    # --- Knowledge: use the Retriever (P6.3 citation-aware contract) ---
+    citation_pack = retrieve_knowledge_for_sales_reply(
+        db, workspace_id=wid, query_text=text,
+        matched_service_ids=service_ids, max_hits=MAX_KNOWLEDGE,
+    )
+    knowledge_hits = citation_pack["hit_count"]
+    # Maintain backwards-compat relevant_knowledge_items shape for mock generate_sales_reply
+    knowledge = list_knowledge_items(db, wid, status="active")
+    scored_old = []
+    for it in knowledge:
+        base = overlap_score(text, " ".join(filter(None, [
+            it.title, it.summary, it.content_markdown, as_text_list(it.tags_json),
+        ])))
+        if it.service_id and it.service_id in service_ids:
+            base += KNOWLEDGE_SERVICE_LINK_BOOST
+        if base > 0:
+            scored_old.append((it, base))
+    scored_old.sort(key=lambda p: p[1], reverse=True)
+    compat_knowledge = [_knowledge_dict(it) for it, _ in scored_old[:MAX_KNOWLEDGE]]
+    risk_notes = _collect_risk_notes(db, wid, services, [it for it, _ in scored_old[:MAX_KNOWLEDGE]])
 
     matched_services = [_service_dict(s) for s in services]
-    relevant_knowledge = [_knowledge_dict(it) for it in knowledge]
 
     summary_bits = [f"匹配服务 {service_hits} 个", f"命中知识 {knowledge_hits} 条"]
     if risk_notes:
@@ -144,18 +125,21 @@ def build_sales_reply_context_pack(db: Session, opportunity_id: str) -> dict:
 
     usage = {
         "used_service_ids": service_ids,
-        "used_knowledge_item_ids": [it["id"] for it in relevant_knowledge],
+        "used_knowledge_item_ids": [h["knowledge_item_id"] for h in citation_pack.get("hits", [])],
         "service_hit_count": service_hits,
         "knowledge_hit_count": knowledge_hits,
+        "citation_count": knowledge_hits,
         "context_builder_version": CONTEXT_BUILDER_VERSION,
+        "retriever_version": citation_pack.get("retriever_version"),
         "context_pack_summary": context_summary,
         "service_names": [s["name"] for s in matched_services],
-        "knowledge_titles": [it["title"] for it in relevant_knowledge],
+        "knowledge_titles": [h["title"] for h in citation_pack.get("hits", [])],
     }
 
     ctx.update({
         "matched_services": matched_services,
-        "relevant_knowledge_items": relevant_knowledge,
+        "relevant_knowledge_items": compat_knowledge,
+        "citation_pack": citation_pack,
         "risk_notes": risk_notes,
         "context_summary": context_summary,
         "usage": usage,

@@ -659,6 +659,35 @@ export async function getKnowledgeDocument(id: string): Promise<KnowledgeDocumen
   return api(`/admin/knowledge/documents/${id}`);
 }
 
+/* ── Knowledge Retrieval & Citation Pack (P6.3) ── */
+
+export type KnowledgeCitationHit = {
+  knowledge_item_id: string;
+  title: string;
+  summary?: string | null;
+  source_type: string;
+  service_id?: string | null;
+  score: number;
+  match_reasons: string[];
+  excerpt: string;
+  tags?: string[];
+  source?: {
+    source_type?: string | null;
+    source_name?: string | null;
+    document_id?: string | null;
+    document_filename?: string | null;
+    chunk_index?: number | null;
+  };
+};
+
+export type CitationPack = {
+  retriever_version: string;
+  query_summary?: string | null;
+  hit_count: number;
+  no_hit_reason?: string | null;
+  hits: KnowledgeCitationHit[];
+};
+
 
 /* ── External Connectors (P5) ── */
 
