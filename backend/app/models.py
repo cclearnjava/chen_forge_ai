@@ -333,6 +333,8 @@ KNOWLEDGE_SOURCE_TYPES = (
     "contract_boundary", "delivery_sop", "service_note", "external_doc",
 )
 
+KNOWLEDGE_DOCUMENT_STATUSES = ("uploaded", "processing", "processed", "failed", "archived")
+
 
 class KnowledgeSource(Base):
     __tablename__ = "knowledge_sources"
@@ -737,5 +739,26 @@ class ExternalConnector(Base):
     secret_ref: Mapped[str | None] = mapped_column(String(255))
     webhook_token: Mapped[str | None] = mapped_column(String(120), unique=True, index=True)
     last_received_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+
+
+# ── Knowledge Document Upload (P6) ──
+
+class KnowledgeDocument(Base):
+    __tablename__ = "knowledge_documents"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    workspace_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True, nullable=False)
+    source_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("knowledge_sources.id"), index=True)
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    content_type: Mapped[str | None] = mapped_column(String(120))
+    file_ext: Mapped[str | None] = mapped_column(String(20), index=True)
+    storage_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="uploaded", nullable=False, index=True)
+    parser: Mapped[str | None] = mapped_column(String(80))
+    text_excerpt: Mapped[str | None] = mapped_column(Text)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    item_count: Mapped[int] = mapped_column(Integer, default=0)
+    metadata_json: Mapped[dict | None] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)

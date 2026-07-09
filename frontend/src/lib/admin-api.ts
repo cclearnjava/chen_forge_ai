@@ -621,6 +621,44 @@ export async function createKnowledgeSource(data: { name: string; description?: 
   return api("/admin/knowledge/sources", { method: "POST", body: JSON.stringify(data) });
 }
 
+export interface KnowledgeDocumentOut {
+  id: string; workspace_id?: string | null; source_id: string | null;
+  filename: string; content_type: string | null; file_ext: string | null;
+  storage_path: string; status: string; parser: string | null;
+  text_excerpt: string | null; error_message: string | null;
+  item_count: number; metadata_json: Record<string, unknown> | null;
+  created_at: string; updated_at: string;
+}
+
+export interface KnowledgeDocumentUploadOut {
+  document: KnowledgeDocumentOut;
+  items: KnowledgeItemOut[];
+  item_count: number;
+}
+
+export async function uploadKnowledgeDocument(file: File): Promise<KnowledgeDocumentUploadOut> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${BASE}/admin/knowledge/documents`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }, // no Content-Type — browser sets multipart boundary
+    body: form,
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`${res.status}: ${body || res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function getKnowledgeDocuments(): Promise<{ items: KnowledgeDocumentOut[]; total: number }> {
+  return api("/admin/knowledge/documents");
+}
+
+export async function getKnowledgeDocument(id: string): Promise<KnowledgeDocumentOut> {
+  return api(`/admin/knowledge/documents/${id}`);
+}
+
 
 /* ── External Connectors (P5) ── */
 

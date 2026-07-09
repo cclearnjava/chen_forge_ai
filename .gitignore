@@ -56,5 +56,8 @@ Thumbs.db
 # local proposal pdf exports
 backend/storage/proposals/
 
+# local knowledge document uploads
+backend/storage/knowledge_documents/
+
 # local browser/test traces
 .playwright-mcp/

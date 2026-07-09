@@ -24,11 +24,18 @@ class Settings(BaseSettings):
 
     upload_dir: str = "./storage/uploads"
     max_upload_size_mb: int = 20
+    knowledge_document_storage_dir: str = "./storage/knowledge_documents"
+    knowledge_document_max_size_mb: int = 2
 
     @property
     def max_upload_size_bytes(self) -> int:
         return self.max_upload_size_mb * 1024 * 1024
 
+    @property
+    def knowledge_document_max_size_bytes(self) -> int:
+        return self.knowledge_document_max_size_mb * 1024 * 1024
+
 
 settings = Settings()
 settings.upload_dir = str(Path(settings.upload_dir).resolve())
+settings.knowledge_document_storage_dir = str(Path(settings.knowledge_document_storage_dir).resolve())

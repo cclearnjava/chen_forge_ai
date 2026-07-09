@@ -96,16 +96,18 @@ DEFAULT_KNOWLEDGE_SOURCES = [
 
 
 def ensure_default_knowledge_sources(db: Session, workspace_id: str) -> list[KnowledgeSource]:
-    """Idempotent: seed default sources if none exist for the workspace."""
-    existing = db.query(KnowledgeSource).filter(
-        KnowledgeSource.workspace_id == workspace_id,
-    ).first()
-    if existing:
-        return list_knowledge_sources(db, workspace_id)
-    sources = []
+    """Idempotent per-name: seed any missing default source for the workspace.
+
+    Robust even if other sources (e.g. the '外部文档' source created by document
+    upload) already exist — each default is seeded only if its name is absent.
+    """
+    existing_names = {
+        s.name for s in db.query(KnowledgeSource).filter(
+            KnowledgeSource.workspace_id == workspace_id,
+        ).all()
+    }
     for d in DEFAULT_KNOWLEDGE_SOURCES:
-        src = KnowledgeSource(workspace_id=workspace_id, **d)
-        db.add(src)
-        sources.append(src)
+        if d["name"] not in existing_names:
+            db.add(KnowledgeSource(workspace_id=workspace_id, **d))
     db.flush()
-    return sources
+    return list_knowledge_sources(db, workspace_id)

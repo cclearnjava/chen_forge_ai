@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy.orm import Session
 from app.db import get_db
 from app.auth.middleware import get_admin_email
@@ -9,10 +9,15 @@ from app.services.knowledge import (
     ensure_default_knowledge_sources, get_knowledge_item_or_none,
     list_knowledge_items, list_knowledge_sources, update_knowledge_item,
 )
+from app.services.knowledge_documents import (
+    get_knowledge_document_or_none, list_knowledge_documents,
+    process_uploaded_knowledge_document,
+)
 from app.services.events import record_event
 from app.schemas import (
     KnowledgeItemCreate, KnowledgeItemOut, KnowledgeItemUpdate,
     KnowledgeSourceCreate, KnowledgeSourceOut,
+    KnowledgeDocumentOut,
 )
 from app.models import KnowledgeItem, KnowledgeSource
 
@@ -31,6 +36,41 @@ def _validate_links(db: Session, wid: str, data: dict) -> None:
         ).first()
         if not src:
             raise HTTPException(status_code=422, detail="source_id does not belong to this workspace")
+
+
+# ── Documents (declared before /{knowledge_id} to avoid path capture) ──
+
+@router.post("/documents", status_code=201)
+async def upload_document_api(file: UploadFile = File(...), db: Session = Depends(get_db), _admin: str = Depends(get_admin_email)):
+    wid = get_current_workspace_id(db)
+    content = await file.read()
+    result = process_uploaded_knowledge_document(
+        db, wid, file.filename or "upload", file.content_type, content,
+    )
+    db.commit()
+    if not result["ok"]:
+        raise HTTPException(status_code=422, detail=result.get("error", "Document processing failed"))
+    return {
+        "document": KnowledgeDocumentOut.model_validate(result["document"]).model_dump(mode="json"),
+        "items": [KnowledgeItemOut.model_validate(it).model_dump(mode="json") for it in result["items"]],
+        "item_count": len(result["items"]),
+    }
+
+
+@router.get("/documents")
+def list_documents_api(db: Session = Depends(get_db), _admin: str = Depends(get_admin_email)):
+    wid = get_current_workspace_id(db)
+    docs = list_knowledge_documents(db, wid)
+    return {"items": [KnowledgeDocumentOut.model_validate(d).model_dump(mode="json") for d in docs], "total": len(docs)}
+
+
+@router.get("/documents/{document_id}")
+def get_document_api(document_id: str, db: Session = Depends(get_db), _admin: str = Depends(get_admin_email)):
+    wid = get_current_workspace_id(db)
+    doc = get_knowledge_document_or_none(db, wid, document_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Knowledge document not found")
+    return KnowledgeDocumentOut.model_validate(doc).model_dump(mode="json")
 
 
 # ── Sources (declared before /{knowledge_id} to avoid path capture) ──

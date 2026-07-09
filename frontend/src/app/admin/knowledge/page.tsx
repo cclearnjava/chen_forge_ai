@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import AdminShell from "@/components/admin/admin-shell";
 import {
-  archiveKnowledgeItem, createKnowledgeItem, getKnowledgeItems, getNotificationSummary,
-  getServices, updateKnowledgeItem,
-  KNOWLEDGE_SOURCE_TYPES, type KnowledgeItemInput, type KnowledgeItemOut, type ServiceOut,
+  archiveKnowledgeItem, createKnowledgeItem, getKnowledgeDocuments, getKnowledgeItems,
+  getNotificationSummary, getServices, updateKnowledgeItem, uploadKnowledgeDocument,
+  KNOWLEDGE_SOURCE_TYPES, type KnowledgeDocumentOut, type KnowledgeItemInput,
+  type KnowledgeItemOut, type ServiceOut,
 } from "@/lib/admin-api";
 
 const SOURCE_TYPE_LABELS: Record<string, string> = {
@@ -64,6 +65,14 @@ export default function KnowledgePage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmArchive, setConfirmArchive] = useState<string | null>(null);
 
+  const [documents, setDocuments] = useState<KnowledgeDocumentOut[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState<string | null>(null);
+
+  const loadDocuments = useCallback(() => {
+    getKnowledgeDocuments().then((r) => setDocuments(r.items)).catch(() => {});
+  }, []);
+
   const load = useCallback(() => {
     setLoading(true);
     getKnowledgeItems({ q: q || undefined, status, source_type: sourceType || undefined, tag: tag || undefined })
@@ -76,7 +85,24 @@ export default function KnowledgePage() {
   useEffect(() => {
     getNotificationSummary().then((s) => setUnreadCount(s.unread_count)).catch(() => {});
     getServices({ status: "active" }).then((r) => setServices(r.items)).catch(() => {});
-  }, []);
+    loadDocuments();
+  }, [loadDocuments]);
+
+  const handleUpload = async (file: File | undefined) => {
+    if (!file) return;
+    setUploading(true); setUploadMsg(null); setError(null);
+    try {
+      const res = await uploadKnowledgeDocument(file);
+      setUploadMsg(`已从「${res.document.filename}」生成 ${res.item_count} 条草稿 KnowledgeItem，请审核后启用。`);
+      setStatus("draft"); // surface the freshly-generated drafts
+      loadDocuments();
+    } catch (e: unknown) {
+      setUploadMsg(null);
+      setError(e instanceof Error ? e.message : "上传失败");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
   const startCreate = () => { setDraft(emptyDraft); setEditId(null); setFormError(null); setEditorOpen(true); };
@@ -123,6 +149,36 @@ export default function KnowledgePage() {
           ))}
         </div>
         <button className="button primary" onClick={startCreate}>新增知识</button>
+      </section>
+
+      <section className="knowledge-upload">
+        <div className="panel-heading"><h2>上传文档</h2></div>
+        <div className="upload-row">
+          <label className="button ghost">
+            {uploading ? "解析中..." : "选择 .txt / .md 文件"}
+            <input type="file" accept=".txt,.md,text/plain,text/markdown" style={{ display: "none" }}
+              disabled={uploading}
+              onChange={(e) => { handleUpload(e.target.files?.[0]); e.target.value = ""; }} />
+          </label>
+          <small>上传后自动解析为草稿知识条目，需审核后启用；仅 active 条目会被 Agent 使用。</small>
+        </div>
+        {uploadMsg && <p className="upload-result">{uploadMsg}</p>}
+        {documents.length > 0 && (
+          <div className="document-list">
+            {documents.slice(0, 8).map((d) => (
+              <div key={d.id} className="document-row">
+                <strong>{d.filename}</strong>
+                <span className="document-meta">
+                  <span className={`stage-badge stage-${d.status === "processed" ? "qualified" : d.status === "failed" ? "lead" : "lead"}`}>{d.status}</span>
+                  <span>{d.item_count} 条</span>
+                  {d.parser && <span>{d.parser}</span>}
+                  <span>{new Date(d.created_at).toLocaleString()}</span>
+                  {d.error_message && <span className="document-error">{d.error_message}</span>}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {editorOpen && (

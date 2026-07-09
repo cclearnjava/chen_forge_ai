@@ -750,6 +750,28 @@ class KnowledgeItemListOut(BaseModel):
     total: int = 0
 
 
+class KnowledgeDocumentOut(BaseModel):
+    id: str; workspace_id: str | None = None
+    source_id: str | None = None
+    filename: str; content_type: str | None = None; file_ext: str | None = None
+    storage_path: str; status: str; parser: str | None = None
+    text_excerpt: str | None = None; error_message: str | None = None
+    item_count: int = 0; metadata_json: dict | None = None
+    created_at: datetime; updated_at: datetime
+    model_config = {"from_attributes": True}
+
+
+class KnowledgeDocumentUploadOut(BaseModel):
+    document: KnowledgeDocumentOut
+    items: list[KnowledgeItemOut] = Field(default_factory=list)
+    item_count: int = 0
+
+
+class KnowledgeDocumentListOut(BaseModel):
+    items: list[KnowledgeDocumentOut] = Field(default_factory=list)
+    total: int = 0
+
+
 # ── External Connector (P5) ──
 
 _CONNECTOR_PROVIDERS = ("mock", "email", "feishu", "wechat_work")
