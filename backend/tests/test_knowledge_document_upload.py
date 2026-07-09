@@ -1,6 +1,7 @@
 """Knowledge document upload tests (P6): upload, extract, chunk, draft items,
 fail-closed on bad input, workspace isolation, events."""
 
+import pytest
 from starlette.testclient import TestClient
 from app.db import SessionLocal, init_db
 from app.models import Event, KnowledgeDocument, KnowledgeItem, Workspace
@@ -146,3 +147,125 @@ class TestKnowledgeDocumentUpload:
         active_ids = {it["id"] for it in client.get("/api/v1/admin/knowledge", headers=ADMIN).json()["items"]}
         assert uploaded_ids <= draft_ids
         assert uploaded_ids.isdisjoint(active_ids)
+
+
+# ── PDF / DOCX parsers (P6.2) ─────────────────────────────────────
+# These require pypdf / python-docx. They skip cleanly where the deps
+# aren't installed, and run fully in a networked environment.
+
+
+def _make_text_pdf(text: str) -> bytes:
+    """Build a structurally-valid minimal single-page PDF with an extractable
+    text layer (ASCII only; Helvetica can't encode CJK). Needs no external lib."""
+    content = f"BT /F1 24 Tf 72 720 Td ({text}) Tj ET".encode("latin-1")
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /MediaBox [0 0 612 792] /Contents 5 0 R >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        b"<< /Length " + str(len(content)).encode() + b" >>\nstream\n" + content + b"\nendstream",
+    ]
+    pdf = b"%PDF-1.4\n"
+    offsets = []
+    for i, obj in enumerate(objects, start=1):
+        offsets.append(len(pdf))
+        pdf += f"{i} 0 obj\n".encode() + obj + b"\nendobj\n"
+    xref_pos = len(pdf)
+    pdf += b"xref\n0 " + str(len(objects) + 1).encode() + b"\n0000000000 65535 f \n"
+    for off in offsets:
+        pdf += f"{off:010d} 00000 n \n".encode()
+    pdf += b"trailer\n<< /Size " + str(len(objects) + 1).encode() + b" /Root 1 0 R >>\nstartxref\n" + str(xref_pos).encode() + b"\n%%EOF"
+    return pdf
+
+
+def _make_docx(paragraphs=None, table_rows=None) -> bytes:
+    docx = pytest.importorskip("docx")
+    from io import BytesIO
+    doc = docx.Document()
+    for p in (paragraphs or []):
+        doc.add_paragraph(p)
+    if table_rows:
+        t = doc.add_table(rows=len(table_rows), cols=len(table_rows[0]))
+        for ri, row in enumerate(table_rows):
+            for ci, val in enumerate(row):
+                t.rows[ri].cells[ci].text = val
+    buf = BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
+
+
+class TestPdfParser:
+    def test_pdf_success_creates_draft_item(self, client: TestClient):
+        pytest.importorskip("pypdf")
+        init_db()
+        pdf = _make_text_pdf("PoC delivery acceptance checklist sample content for extraction test.")
+        r = _upload(client, "plan.pdf", pdf, "application/pdf")
+        assert r.status_code == 201, r.text
+        assert r.json()["document"]["parser"] == "pdf_text_v1"
+        assert r.json()["item_count"] >= 1
+        assert all(it["status"] == "draft" for it in r.json()["items"])
+
+    def test_pdf_no_text_422(self, client: TestClient):
+        pypdf = pytest.importorskip("pypdf")
+        from io import BytesIO
+        init_db()
+        writer = pypdf.PdfWriter()
+        writer.add_blank_page(width=612, height=792)
+        buf = BytesIO(); writer.write(buf)
+        r = _upload(client, "scan.pdf", buf.getvalue(), "application/pdf")
+        assert r.status_code == 422
+        assert "No extractable text" in r.json()["detail"]
+
+    def test_encrypted_pdf_422(self, client: TestClient):
+        pypdf = pytest.importorskip("pypdf")
+        from io import BytesIO
+        init_db()
+        writer = pypdf.PdfWriter()
+        writer.add_blank_page(width=612, height=792)
+        writer.encrypt("secret")
+        buf = BytesIO(); writer.write(buf)
+        r = _upload(client, "locked.pdf", buf.getvalue(), "application/pdf")
+        assert r.status_code == 422
+        assert "Encrypted" in r.json()["detail"] or "No extractable" in r.json()["detail"]
+
+
+class TestDocxParser:
+    def test_docx_success_creates_draft_item(self, client: TestClient):
+        pytest.importorskip("docx")
+        init_db()
+        content = _make_docx(paragraphs=[
+            "RAG 项目交付 SOP 第一阶段：资料盘点与数据准备，确认文档质量与访问权限。",
+            "第二阶段：问题样例整理，明确验收标准与成功指标。",
+        ])
+        r = _upload(client, "sop.docx", content, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        assert r.status_code == 201, r.text
+        assert r.json()["document"]["parser"] == "docx_text_v1"
+        assert r.json()["item_count"] >= 1
+        assert all(it["status"] == "draft" for it in r.json()["items"])
+
+    def test_docx_table_text_extracted(self, client: TestClient):
+        pytest.importorskip("docx")
+        init_db()
+        content = _make_docx(
+            paragraphs=["报价对照表如下，包含不同版本的交付范围与周期说明，内容足够长以通过切分阈值。"],
+            table_rows=[["版本", "价格", "周期"], ["标准版", "5万", "4周"]],
+        )
+        r = _upload(client, "quote.docx", content, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        assert r.status_code == 201
+        combined = " ".join(it["content_markdown"] for it in r.json()["items"])
+        assert "标准版" in combined and "5万" in combined
+
+    def test_empty_docx_422(self, client: TestClient):
+        pytest.importorskip("docx")
+        init_db()
+        content = _make_docx(paragraphs=[])
+        r = _upload(client, "empty.docx", content, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        assert r.status_code == 422
+        assert "No extractable text" in r.json()["detail"]
+
+    def test_corrupt_docx_422(self, client: TestClient):
+        pytest.importorskip("docx")
+        init_db()
+        r = _upload(client, "broken.docx", b"not a real docx payload", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        assert r.status_code == 422
+        assert "Failed to parse DOCX" in r.json()["detail"]

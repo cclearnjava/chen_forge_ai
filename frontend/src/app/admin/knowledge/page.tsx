@@ -16,6 +16,9 @@ const SOURCE_TYPE_LABELS: Record<string, string> = {
 };
 const STATUS_LABELS: Record<string, string> = { draft: "草稿", active: "有效", archived: "已归档" };
 const STATUS_FILTERS = ["active", "draft", "archived"];
+const PARSER_LABELS: Record<string, string> = {
+  text_v1: "TXT", markdown_text_v1: "Markdown", pdf_text_v1: "PDF 文本", docx_text_v1: "Word 文档",
+};
 
 type Draft = {
   title: string; summary: string; content_markdown: string;
@@ -155,12 +158,12 @@ export default function KnowledgePage() {
         <div className="panel-heading"><h2>上传文档</h2></div>
         <div className="upload-row">
           <label className="button ghost">
-            {uploading ? "解析中..." : "选择 .txt / .md 文件"}
-            <input type="file" accept=".txt,.md,text/plain,text/markdown" style={{ display: "none" }}
+            {uploading ? "解析中..." : "选择 TXT / Markdown / PDF / Word 文件"}
+            <input type="file" accept=".txt,.md,.pdf,.docx,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style={{ display: "none" }}
               disabled={uploading}
               onChange={(e) => { handleUpload(e.target.files?.[0]); e.target.value = ""; }} />
           </label>
-          <small>上传后自动解析为草稿知识条目，需审核后启用；仅 active 条目会被 Agent 使用。</small>
+          <small>支持 TXT、Markdown、PDF 文本层、Word 文档；扫描版 PDF 暂不支持 OCR。上传后自动解析为草稿知识条目，需审核后启用；仅 active 条目会被 Agent 使用。</small>
         </div>
         {uploadMsg && <p className="upload-result">{uploadMsg}</p>}
         {documents.length > 0 && (
@@ -171,7 +174,7 @@ export default function KnowledgePage() {
                 <span className="document-meta">
                   <span className={`stage-badge stage-${d.status === "processed" ? "qualified" : d.status === "failed" ? "lead" : "lead"}`}>{d.status}</span>
                   <span>{d.item_count} 条</span>
-                  {d.parser && <span>{d.parser}</span>}
+                  {d.parser && <span>{PARSER_LABELS[d.parser] || d.parser}</span>}
                   <span>{new Date(d.created_at).toLocaleString()}</span>
                   {d.error_message && <span className="document-error">{d.error_message}</span>}
                 </span>

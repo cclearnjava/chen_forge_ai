@@ -14,7 +14,12 @@ from app.models import KnowledgeDocument, KnowledgeItem, KnowledgeSource
 from app.services.events import record_event
 from app.services.knowledge_document_storage import save_knowledge_document_file
 
-SUPPORTED_EXTS = {".txt": "text_v1", ".md": "markdown_text_v1"}
+SUPPORTED_EXTS = {
+    ".txt": "text_v1",
+    ".md": "markdown_text_v1",
+    ".pdf": "pdf_text_v1",
+    ".docx": "docx_text_v1",
+}
 EXTERNAL_DOC_SOURCE_NAME = "外部文档"
 
 MAX_CHUNK_CHARS = 1200
@@ -24,21 +29,85 @@ MIN_CHUNK_CHARS = 40
 _HEADING_RE = re.compile(r"^(#{1,3})\s+(.*)$")
 
 
-def extract_text_from_upload(filename: str, content_type: str | None, content_bytes: bytes) -> tuple[str, str]:
-    """Return (parser_name, text). Raises ValueError for unsupported/empty/non-UTF-8 input."""
-    ext = os.path.splitext(filename or "")[1].lower()
-    if ext not in SUPPORTED_EXTS:
-        raise ValueError(f"Unsupported file type: {ext or 'unknown'} (only .txt / .md)")
-    if not content_bytes:
-        raise ValueError("File is empty")
-    if len(content_bytes) > settings.knowledge_document_max_size_bytes:
-        raise ValueError(f"File exceeds {settings.knowledge_document_max_size_mb}MB limit")
+def extract_plain_text(content_bytes: bytes) -> str:
+    """Decode a text/markdown upload as UTF-8. Raises ValueError on non-UTF-8 or empty."""
     try:
         text = content_bytes.decode("utf-8")
     except UnicodeDecodeError:
         raise ValueError("File is not valid UTF-8 text")
     if not text.strip():
         raise ValueError("File is empty")
+    return text
+
+
+def extract_pdf_text(content_bytes: bytes) -> str:
+    """Extract the text layer from a PDF (no OCR). Raises ValueError with a specific
+    message for encrypted / no-text / parse-failure. Imports pypdf lazily so the
+    module stays importable (and .txt/.md keep working) even if pypdf is absent."""
+    try:
+        from pypdf import PdfReader
+    except ImportError:
+        raise ValueError("PDF parsing is not available (pypdf not installed)")
+    from io import BytesIO
+    try:
+        reader = PdfReader(BytesIO(content_bytes))
+        if reader.is_encrypted:
+            raise ValueError("Encrypted PDF is not supported")
+        pages = [(page.extract_text() or "") for page in reader.pages]
+    except ValueError:
+        raise
+    except Exception:
+        raise ValueError("Failed to parse PDF")
+    text = "\n\n".join(p for p in pages if p.strip())
+    if not text.strip():
+        raise ValueError("No extractable text found in PDF")
+    return text
+
+
+def extract_docx_text(content_bytes: bytes) -> str:
+    """Extract paragraph + table text from a .docx. Raises ValueError for empty/corrupt.
+    Imports python-docx lazily so the module stays importable if it's absent."""
+    try:
+        import docx
+    except ImportError:
+        raise ValueError("DOCX parsing is not available (python-docx not installed)")
+    from io import BytesIO
+    try:
+        document = docx.Document(BytesIO(content_bytes))
+        parts = [p.text for p in document.paragraphs if p.text and p.text.strip()]
+        for table in document.tables:
+            for row in table.rows:
+                cells = [c.text.strip() for c in row.cells]
+                if any(cells):
+                    parts.append(" | ".join(cells))
+    except ValueError:
+        raise
+    except Exception:
+        raise ValueError("Failed to parse DOCX")
+    text = "\n\n".join(parts)
+    if not text.strip():
+        raise ValueError("No extractable text found in DOCX")
+    return text
+
+
+def extract_text_from_upload(filename: str, content_type: str | None, content_bytes: bytes) -> tuple[str, str]:
+    """Return (parser_name, text). Dispatches by extension BEFORE any UTF-8 decode,
+    so binary formats (.pdf/.docx) never hit the text decoder. Raises ValueError for
+    unsupported / empty / oversized / unparseable input."""
+    ext = os.path.splitext(filename or "")[1].lower()
+    if ext not in SUPPORTED_EXTS:
+        raise ValueError(f"Unsupported file type: {ext or 'unknown'} (only .txt / .md / .pdf / .docx)")
+    if not content_bytes:
+        raise ValueError("File is empty")
+    if len(content_bytes) > settings.knowledge_document_max_size_bytes:
+        raise ValueError(f"File exceeds {settings.knowledge_document_max_size_mb}MB limit")
+
+    if ext == ".pdf":
+        text = extract_pdf_text(content_bytes)
+    elif ext == ".docx":
+        text = extract_docx_text(content_bytes)
+    else:
+        text = extract_plain_text(content_bytes)
     return SUPPORTED_EXTS[ext], text
 
 
