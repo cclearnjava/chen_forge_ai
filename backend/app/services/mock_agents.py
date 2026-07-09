@@ -8,10 +8,17 @@ def generate_sales_reply(context: dict) -> dict:
     """Generate a safe customer reply draft and discovery questions from context.
 
     Returns dict with: customer_reply_draft (str), discovery_questions (list[str]).
+
+    If the context pack carries matched_services / relevant_knowledge_items / risk_notes,
+    the reply reflects them naturally. Only service names and knowledge summaries/titles are
+    surfaced — never raw content_markdown or price figures (those must not reach the customer).
     """
     customer = context.get("customer")
     contact = context.get("primary_contact")
     opp = context.get("opportunity")
+    matched_services = context.get("matched_services") or []
+    knowledge_items = context.get("relevant_knowledge_items") or []
+    risk_notes = context.get("risk_notes") or []
 
     company_name = customer.name if customer else "贵公司"
     contact_name = contact.name if contact and contact.name else "负责人"
@@ -23,9 +30,35 @@ def generate_sales_reply(context: dict) -> dict:
         f"感谢 {company_name} 的信任。根据我们目前的理解，"
         f"您这边的核心痛点是：{problem}。\n\n"
         f"针对「{outcome}」这个目标，我们建议先通过一个 PoC 验证来确认技术可行性和业务价值，"
-        f"再根据验证结果制定后续交付计划。具体方案和周期需要在澄清需求后以验收标准为准。\n\n"
-        f"以下是我们建议先澄清的几个问题，方便的话可以先看一下。"
+        f"再根据验证结果制定后续交付计划。具体方案和周期需要在澄清需求后以验收标准为准。"
     )
+
+    # Service capability — reference service names and delivery direction (never prices)
+    service_names = [s.get("name") for s in matched_services if s.get("name")][:2]
+    if service_names:
+        reply += (
+            f"\n\n结合我们在「{'」「'.join(service_names)}」方向的交付经验，"
+            f"这类需求通常可以从一个范围可控的 PoC 起步，逐步扩展。"
+        )
+
+    # Knowledge — weave in experience via summaries/titles (never raw content)
+    knowledge_hint = ""
+    for it in knowledge_items:
+        hint = it.get("summary") or it.get("title")
+        if hint:
+            knowledge_hint = hint
+            break
+    if knowledge_hint:
+        reply += f"\n\n基于类似项目的经验，我们建议特别关注：{knowledge_hint}。"
+
+    # Risk boundary — cautious phrasing
+    if risk_notes:
+        reply += (
+            f"\n\n需要提前说明的是：{risk_notes[0]}"
+            f"，我们会在方案中把边界和前提写清楚，避免过度承诺。"
+        )
+
+    reply += "\n\n以下是我们建议先澄清的几个问题，方便的话可以先看一下。"
 
     discovery_questions = [
         f"目前 {company_name} 内部谁负责主导这个项目的评估和决策？",

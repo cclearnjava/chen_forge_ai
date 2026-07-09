@@ -7,7 +7,8 @@ from app.models import (
     AuditLog, Decision, DecisionStatus,
 )
 from app.services.workspace import get_default_workspace_id
-from app.services.agent_context import build_opportunity_agent_context
+from app.services.context_builder import build_sales_reply_context_pack
+from app.services.events import record_event
 from app.services.mock_agents import generate_sales_reply, review_sales_reply
 
 
@@ -56,10 +57,11 @@ def run_sales_reply_workflow(db: Session, opportunity_id: str) -> dict:
     All writes use db.add + db.flush. The caller (API) owns db.commit().
     Any exception leaves no persisted state (fail-closed by caller's rollback).
     """
-    # 1. Build context
-    ctx = build_opportunity_agent_context(db, opportunity_id)
+    # 1. Build context pack (Opportunity + Service Catalog + Knowledge Engine)
+    ctx = build_sales_reply_context_pack(db, opportunity_id)
     opp = ctx["opportunity"]
     lead_id = ctx["lead_id"]
+    context_usage = ctx.get("usage", {})
 
     # 2. Upsert sales_agent profile
     sales_wid = opp.workspace_id or get_default_workspace_id(db)
@@ -98,7 +100,7 @@ def run_sales_reply_workflow(db: Session, opportunity_id: str) -> dict:
         artifact_type=ArtifactType.customer_reply_draft,
         title="客户回复草稿",
         content_markdown=reply_md,
-        content_json={"reply": reply_md, "discovery_questions": questions},
+        content_json={"reply": reply_md, "discovery_questions": questions, "context_usage": context_usage},
         model="mock-sales-agent-v1",
         prompt_version="sales_reply.v1",
         requires_approval=True,
@@ -126,7 +128,20 @@ def run_sales_reply_workflow(db: Session, opportunity_id: str) -> dict:
         "draft_artifact_id": draft_artifact.id,
         "questions_artifact_id": questions_artifact.id,
         "discovery_questions_count": len(questions),
+        "context_usage": context_usage,
     }
+
+    # Record context_pack.built event (no notification rule → event only)
+    record_event(
+        db, workspace_id=sales_wid, type="context_pack.built", source="sales_reply_workflow",
+        subject_type="opportunity", subject_id=opportunity_id,
+        title="Context Pack built for sales reply",
+        payload_json={
+            "service_hit_count": context_usage.get("service_hit_count", 0),
+            "knowledge_hit_count": context_usage.get("knowledge_hit_count", 0),
+            "context_builder_version": context_usage.get("context_builder_version"),
+        },
+    )
 
     # 7. Upsert quality_agent profile
     quality_wid = opp.workspace_id or get_default_workspace_id(db)

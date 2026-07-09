@@ -1,6 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import type { ArtifactOut, AgentRunOut } from "@/lib/admin-api";
+
+type ContextUsage = {
+  service_hit_count?: number;
+  knowledge_hit_count?: number;
+  service_names?: string[];
+  knowledge_titles?: string[];
+  context_builder_version?: string;
+};
 
 function riskColor(level: string) {
   if (level === "high") return "var(--color-danger, #dc2626)";
@@ -37,6 +46,8 @@ export default function AgentWorkbench({
   const sow = findArtifact(artifacts, "sow_draft");
   const commReview = findArtifact(artifacts, "commercial_review");
 
+  const contextUsage = (draft?.content_json?.context_usage as ContextUsage | undefined) ?? undefined;
+
   if (!draft && !review && !proposal && !followupReply && !objection && !nextStep && !quote && !sow && !commReview) {
     return (
       <section className="agent-workbench" aria-label="Agent output">
@@ -63,6 +74,39 @@ export default function AgentWorkbench({
             {draft.content_markdown}
           </div>
           <small className="meta">model: {draft.model} · {new Date(draft.created_at).toLocaleString()}</small>
+        </article>
+      )}
+
+      {contextUsage && (
+        <article className="workbench-card context-usage-card">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">Context Builder</p>
+              <h2>本次回复使用的上下文</h2>
+            </div>
+            <span className="badge">{contextUsage.context_builder_version || "context_builder.v1"}</span>
+          </div>
+          <div className="context-usage-counts">
+            <span>服务命中：<strong>{contextUsage.service_hit_count ?? 0}</strong></span>
+            <span>知识命中：<strong>{contextUsage.knowledge_hit_count ?? 0}</strong></span>
+          </div>
+          {contextUsage.service_names && contextUsage.service_names.length > 0 && (
+            <div className="context-usage-list">
+              <small>服务</small>
+              <ul>{contextUsage.service_names.map((n, i) => <li key={i}>{n}</li>)}</ul>
+            </div>
+          )}
+          {contextUsage.knowledge_titles && contextUsage.knowledge_titles.length > 0 && (
+            <div className="context-usage-list">
+              <small>知识</small>
+              <ul>{contextUsage.knowledge_titles.map((t, i) => <li key={i}>{t}</li>)}</ul>
+            </div>
+          )}
+          {(contextUsage.knowledge_hit_count ?? 0) === 0 && (
+            <p className="context-usage-empty">
+              当前回复未使用 Workspace 知识。可以先到 <Link href="/admin/knowledge">Knowledge 页面</Link> 维护 FAQ、案例、报价规则或交付 SOP。
+            </p>
+          )}
         </article>
       )}
 

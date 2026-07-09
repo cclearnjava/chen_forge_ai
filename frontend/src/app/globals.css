@@ -1411,3 +1411,39 @@ h3 {
   color: var(--muted);
   text-align: center;
 }
+
+.context-usage-card .context-usage-counts {
+  display: flex;
+  gap: 24px;
+  padding: 12px 16px 0;
+  font-size: 14px;
+}
+
+.context-usage-card .context-usage-counts strong {
+  color: var(--blueprint);
+}
+
+.context-usage-list {
+  padding: 8px 16px 0;
+}
+
+.context-usage-list small {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.context-usage-list ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+
+.context-usage-empty {
+  margin: 10px 16px 14px;
+  padding: 10px 12px;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
