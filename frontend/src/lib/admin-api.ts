@@ -639,7 +639,7 @@ export interface InboundMessageResult {
   deduplicated: boolean;
   connector_id: string;
   customer: { id: string; name: string } | null;
-  contact: { id: string; email: string | null } | null;
+  contact: { id: string; email: string | null; phone?: string | null; external_provider?: string | null; external_user_id?: string | null } | null;
   conversation: { id: string; title: string } | null;
   message: { id: string; source: string; body_markdown: string } | null;
   event_id: string | null;

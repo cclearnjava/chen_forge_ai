@@ -258,6 +258,9 @@ class ContactOut(BaseModel):
     name: str | None = None
     email: str | None = None
     contact_method: str | None = None
+    phone: str | None = None
+    external_provider: str | None = None
+    external_user_id: str | None = None
     role: str | None = None
     is_primary: bool
     source_lead_id: str | None = None

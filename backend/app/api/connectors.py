@@ -38,7 +38,9 @@ def _customer_dict(c):
 
 def _contact_dict(c):
     return None if not c else {"id": c.id, "name": c.name, "email": c.email,
-                               "contact_method": c.contact_method, "is_primary": c.is_primary}
+                               "contact_method": c.contact_method, "is_primary": c.is_primary,
+                               "phone": c.phone, "external_provider": c.external_provider,
+                               "external_user_id": c.external_user_id}
 
 
 def _conversation_dict(c):

@@ -35,6 +35,8 @@ export default function ConnectorsPage() {
   const [testToken, setTestToken] = useState("");
   const [testName, setTestName] = useState("王总");
   const [testEmail, setTestEmail] = useState("wang@example.com");
+  const [testPhone, setTestPhone] = useState("");
+  const [testExtUid, setTestExtUid] = useState("");
   const [testMsgId, setTestMsgId] = useState("");
   const [testBody, setTestBody] = useState("我们想确认 PoC 报价和交付周期。");
   const [sending, setSending] = useState(false);
@@ -76,7 +78,12 @@ export default function ConnectorsPage() {
     try {
       const res = await sendMockInboundMessage(testToken, {
         external_message_id: testMsgId.trim() || `mock-${Date.now()}`,
-        sender: { name: testName || undefined, email: testEmail || undefined },
+        sender: {
+          name: testName || undefined,
+          email: testEmail || undefined,
+          phone: testPhone || undefined,
+          external_user_id: testExtUid || undefined,
+        },
         body_markdown: testBody.trim(),
         raw_payload: { provider: "mock" },
       });
@@ -144,6 +151,8 @@ export default function ConnectorsPage() {
           </label>
           <label>发件人姓名 <input value={testName} onChange={(e) => setTestName(e.target.value)} /></label>
           <label>发件人邮箱 <input value={testEmail} onChange={(e) => setTestEmail(e.target.value)} /></label>
+          <label>发件人手机号 <input placeholder="飞书/企微无邮箱时用" value={testPhone} onChange={(e) => setTestPhone(e.target.value)} /></label>
+          <label>external_user_id <input placeholder="平台用户 ID（可选）" value={testExtUid} onChange={(e) => setTestExtUid(e.target.value)} /></label>
           <label>external_message_id <input placeholder="留空自动生成" value={testMsgId} onChange={(e) => setTestMsgId(e.target.value)} /></label>
           <label className="subform-full">消息正文 <textarea rows={3} value={testBody} onChange={(e) => setTestBody(e.target.value)} /></label>
         </div>
@@ -157,6 +166,14 @@ export default function ConnectorsPage() {
               {testResult.customer && ` · 客户：${testResult.customer.name}`}
               {testResult.conversation && ` · 会话：${testResult.conversation.title}`}
             </p>
+            {testResult.contact && (
+              <small>
+                Contact: {testResult.contact.email || "无邮箱"}
+                {testResult.contact.phone && ` · ${testResult.contact.phone}`}
+                {testResult.contact.external_provider && testResult.contact.external_user_id &&
+                  ` · ${testResult.contact.external_provider}:${testResult.contact.external_user_id}`}
+              </small>
+            )}
             {testResult.message && <small>message source: {testResult.message.source}</small>}
           </div>
         )}

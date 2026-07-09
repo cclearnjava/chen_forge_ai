@@ -28,6 +28,65 @@ def _status_str(connector: ExternalConnector) -> str:
     return connector.status.value if hasattr(connector.status, "value") else connector.status
 
 
+def normalize_phone(value: str | None) -> str | None:
+    """Lightweight phone normalization: keep a leading '+' and digits only."""
+    if not value:
+        return None
+    s = value.strip()
+    plus = s.startswith("+")
+    digits = "".join(ch for ch in s if ch.isdigit())
+    if not digits:
+        return None
+    return ("+" + digits) if plus else digits
+
+
+def find_contact_for_inbound_sender(db: Session, workspace_id: str, provider: str, sender: dict) -> Contact | None:
+    """Match an existing Contact by identity, in fixed priority, workspace-scoped.
+
+    1. external_provider + external_user_id
+    2. email
+    3. normalized phone
+    """
+    euid = sender.get("external_user_id")
+    if euid:
+        c = db.query(Contact).filter(
+            Contact.workspace_id == workspace_id,
+            Contact.external_provider == provider,
+            Contact.external_user_id == euid,
+        ).first()
+        if c:
+            return c
+    email = sender.get("email")
+    if email:
+        c = db.query(Contact).filter(
+            Contact.workspace_id == workspace_id, Contact.email == email,
+        ).first()
+        if c:
+            return c
+    phone = normalize_phone(sender.get("phone"))
+    if phone:
+        c = db.query(Contact).filter(
+            Contact.workspace_id == workspace_id, Contact.phone == phone,
+        ).first()
+        if c:
+            return c
+    return None
+
+
+def _backfill_identity(contact: Contact, provider: str, sender: dict, norm_phone: str | None) -> None:
+    """Fill empty identity fields on a matched Contact. Never overwrite existing values."""
+    if norm_phone and not contact.phone:
+        contact.phone = norm_phone
+    euid = sender.get("external_user_id")
+    if euid and not contact.external_user_id:
+        contact.external_user_id = euid
+        if not contact.external_provider:
+            contact.external_provider = provider
+    email = sender.get("email")
+    if email and not contact.email:
+        contact.email = email
+
+
 def _create_conversation(db: Session, wid: str, customer: Customer, contact: Contact, connector: ExternalConnector) -> Conversation:
     conv = Conversation(
         workspace_id=wid,
@@ -70,15 +129,13 @@ def process_inbound_message(db: Session, connector: ExternalConnector, payload: 
             "event": None, "notification": None,
         }
 
-    # Contact matching (email only for MVP), workspace-scoped
-    contact = None
-    email = sender.get("email")
-    if email:
-        contact = db.query(Contact).filter(
-            Contact.workspace_id == wid, Contact.email == email,
-        ).first()
+    # Contact matching: external_user_id (+provider) → email → phone, workspace-scoped
+    provider = _provider_str(connector.provider)
+    norm_phone = normalize_phone(sender.get("phone"))
+    contact = find_contact_for_inbound_sender(db, wid, provider, sender)
 
     if contact:
+        _backfill_identity(contact, provider, sender, norm_phone)
         customer = db.query(Customer).filter(
             Customer.id == contact.customer_id, Customer.workspace_id == wid,
         ).first()
@@ -90,13 +147,17 @@ def process_inbound_message(db: Session, connector: ExternalConnector, payload: 
         if not conversation:
             conversation = _create_conversation(db, wid, customer, contact, connector)
     else:
-        display = sender.get("name") or email or sender.get("phone") or "外部客户"
+        email = sender.get("email")
+        display = sender.get("name") or email or norm_phone or sender.get("external_user_id") or "外部客户"
         customer = Customer(workspace_id=wid, name=display, owner_email=email or "")
         db.add(customer)
         db.flush()
         contact = Contact(
             workspace_id=wid, customer_id=customer.id, name=sender.get("name"),
-            email=email, contact_method=email or sender.get("phone"), is_primary=True,
+            email=email, phone=norm_phone,
+            external_provider=provider, external_user_id=sender.get("external_user_id"),
+            contact_method=email or norm_phone or sender.get("external_user_id"),
+            is_primary=True,
         )
         db.add(contact)
         db.flush()

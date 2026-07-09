@@ -169,3 +169,85 @@ class TestInbound:
         m = db.query(Message).filter(Message.id == mid).first()
         raw = m.raw_payload_json; db.close()
         assert raw.get("trace") == "abc"
+
+
+class TestIdentityMatching:
+    def _seed_contact(self, wid, **fields):
+        db = SessionLocal()
+        cust = Customer(workspace_id=wid, name=fields.get("name", "身份客户"), owner_email=fields.get("email") or "")
+        db.add(cust); db.flush()
+        ct = Contact(workspace_id=wid, customer_id=cust.id, is_primary=True,
+                     name=fields.get("name"), email=fields.get("email"), phone=fields.get("phone"),
+                     external_provider=fields.get("external_provider"), external_user_id=fields.get("external_user_id"))
+        db.add(ct); db.commit()
+        cid, ctid = cust.id, ct.id; db.close()
+        return cid, ctid
+
+    def test_external_user_id_matches_existing_contact(self, client: TestClient):
+        init_db()
+        c = _make_connector(client)  # provider mock
+        cust_id, _ = self._seed_contact(c["workspace_id"], name="王总", external_provider="mock", external_user_id="ou_match_uid")
+        r = _inbound(client, c["webhook_token"], sender={"name": "王总", "external_user_id": "ou_match_uid"})
+        assert r.json()["customer"]["id"] == cust_id
+
+    def test_external_user_id_is_provider_scoped(self, client: TestClient):
+        init_db()
+        c = _make_connector(client)  # provider mock
+        cust_id, _ = self._seed_contact(c["workspace_id"], name="王总", external_provider="feishu", external_user_id="ou_scoped_uid")
+        # same euid but stored under a different provider → must NOT match
+        r = _inbound(client, c["webhook_token"], sender={"name": "王总", "external_user_id": "ou_scoped_uid"})
+        assert r.json()["customer"]["id"] != cust_id
+
+    def test_phone_matches_existing_contact(self, client: TestClient):
+        init_db()
+        c = _make_connector(client)
+        cust_id, _ = self._seed_contact(c["workspace_id"], name="李总", phone="13811110001")
+        r = _inbound(client, c["webhook_token"], sender={"name": "李总", "phone": "13811110001"})
+        assert r.json()["customer"]["id"] == cust_id
+
+    def test_phone_normalized_before_matching(self, client: TestClient):
+        init_db()
+        c = _make_connector(client)
+        cust_id, _ = self._seed_contact(c["workspace_id"], name="李总", phone="13811110002")
+        # messy formatting must normalize to the stored value and match
+        r = _inbound(client, c["webhook_token"], sender={"name": "李总", "phone": "138 1111-0002"})
+        assert r.json()["customer"]["id"] == cust_id
+
+    def test_new_contact_saves_phone_and_external_user_id(self, client: TestClient):
+        init_db()
+        c = _make_connector(client)
+        r = _inbound(client, c["webhook_token"],
+                     sender={"name": "新客户", "phone": "+86 138-3333-1111", "external_user_id": "uid_new_save"})
+        contact = r.json()["contact"]
+        assert contact["phone"] == "+8613833331111"
+        assert contact["external_user_id"] == "uid_new_save"
+        assert contact["external_provider"] == "mock"
+
+    def test_email_match_backfills_missing_phone_and_external_identity(self, client: TestClient):
+        init_db()
+        c = _make_connector(client)
+        self._seed_contact(c["workspace_id"], name="老客户", email="backfill_unique@ex.com")
+        r = _inbound(client, c["webhook_token"],
+                     sender={"name": "老客户", "email": "backfill_unique@ex.com", "phone": "13944440001", "external_user_id": "uid_backfill"})
+        contact = r.json()["contact"]
+        assert contact["phone"] == "13944440001"
+        assert contact["external_user_id"] == "uid_backfill"
+        assert contact["external_provider"] == "mock"
+
+    def test_phone_match_is_workspace_scoped(self, client: TestClient):
+        init_db(); db = SessionLocal()
+        ws2 = Workspace(slug="id-ws2-phone", name="WS2", is_default=False)
+        db.add(ws2); db.commit(); ws2_id = ws2.id; db.close()
+        ws2_cust, _ = self._seed_contact(ws2_id, name="别的WS", phone="13855550001")
+        c = _make_connector(client)  # default workspace
+        r = _inbound(client, c["webhook_token"], sender={"name": "同手机", "phone": "13855550001"})
+        assert r.json()["customer"]["id"] != ws2_cust
+
+    def test_external_user_id_match_is_workspace_scoped(self, client: TestClient):
+        init_db(); db = SessionLocal()
+        ws2 = Workspace(slug="id-ws2-euid", name="WS2", is_default=False)
+        db.add(ws2); db.commit(); ws2_id = ws2.id; db.close()
+        ws2_cust, _ = self._seed_contact(ws2_id, name="别的WS", external_provider="mock", external_user_id="ou_ws_scoped")
+        c = _make_connector(client)  # default workspace
+        r = _inbound(client, c["webhook_token"], sender={"name": "同ID", "external_user_id": "ou_ws_scoped"})
+        assert r.json()["customer"]["id"] != ws2_cust
