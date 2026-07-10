@@ -128,3 +128,20 @@ class TestKnowledgeRetriever:
         assert src["document_id"] == doc.id
         assert src["document_filename"] == "sop.docx"
         assert src["chunk_index"] == 2
+
+    def test_external_doc_source_does_not_leak_other_workspace_filename(self):
+        init_db(); db = SessionLocal()
+        ws1 = _workspace(db)
+        ws2 = _workspace(db)
+        foreign_doc = KnowledgeDocument(workspace_id=ws2.id, filename="secret-other-ws.pdf",
+                                        storage_path="x", status="processed")
+        db.add(foreign_doc); db.commit()
+        _item(db, ws1.id, source_type="external_doc",
+              content_markdown="来自文档的验收标准说明且内容足够长能够通过所有阈值检测",
+              metadata_json={"document_id": foreign_doc.id, "chunk_index": 1})
+        pack = retrieve_knowledge_for_sales_reply(db, workspace_id=ws1.id, query_text="验收标准文档")
+        hits = [h for h in pack["hits"] if h["source_type"] == "external_doc"]
+        assert hits
+        src = hits[0]["source"]
+        assert src["document_id"] == foreign_doc.id
+        assert src["document_filename"] is None

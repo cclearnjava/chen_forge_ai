@@ -5,18 +5,15 @@ Deterministic, workspace-scoped, no embeddings. Extends the base opportunity con
 """
 
 from sqlalchemy.orm import Session
-from app.models import ServiceRiskRule
+from app.models import KnowledgeItem, ServiceRiskRule
 from app.services.agent_context import build_opportunity_agent_context
 from app.services.service_catalog import list_services
-from app.services.knowledge import list_knowledge_items
 from app.services.knowledge_retriever import retrieve_knowledge_for_sales_reply
-from app.services.text_utils import as_text_list, bigrams, overlap_score
+from app.services.text_utils import as_text_list, overlap_score
 
 CONTEXT_BUILDER_VERSION = "context_builder.sales_reply.v1"
 MAX_SERVICES = 3
 MAX_KNOWLEDGE = 5
-EXCERPT_LEN = 200
-KNOWLEDGE_SERVICE_LINK_BOOST = 5
 
 
 def _opportunity_haystack(opp, messages) -> str:
@@ -48,12 +45,14 @@ def _service_dict(s) -> dict:
     }
 
 
-def _knowledge_dict(it) -> dict:
-    excerpt = (it.content_markdown or "")[:EXCERPT_LEN]
+def _knowledge_dict_from_hit(hit: dict) -> dict:
     return {
-        "id": it.id, "title": it.title, "summary": it.summary,
-        "source_type": it.source_type, "tags_json": it.tags_json or [],
-        "content_excerpt": excerpt,
+        "id": hit["knowledge_item_id"],
+        "title": hit["title"],
+        "summary": hit.get("summary"),
+        "source_type": hit.get("source_type"),
+        "tags_json": hit.get("tags") or [],
+        "content_excerpt": hit.get("excerpt") or "",
     }
 
 
@@ -101,20 +100,20 @@ def build_sales_reply_context_pack(db: Session, opportunity_id: str) -> dict:
         matched_service_ids=service_ids, max_hits=MAX_KNOWLEDGE,
     )
     knowledge_hits = citation_pack["hit_count"]
-    # Maintain backwards-compat relevant_knowledge_items shape for mock generate_sales_reply
-    knowledge = list_knowledge_items(db, wid, status="active")
-    scored_old = []
-    for it in knowledge:
-        base = overlap_score(text, " ".join(filter(None, [
-            it.title, it.summary, it.content_markdown, as_text_list(it.tags_json),
-        ])))
-        if it.service_id and it.service_id in service_ids:
-            base += KNOWLEDGE_SERVICE_LINK_BOOST
-        if base > 0:
-            scored_old.append((it, base))
-    scored_old.sort(key=lambda p: p[1], reverse=True)
-    compat_knowledge = [_knowledge_dict(it) for it, _ in scored_old[:MAX_KNOWLEDGE]]
-    risk_notes = _collect_risk_notes(db, wid, services, [it for it, _ in scored_old[:MAX_KNOWLEDGE]])
+    hits = citation_pack.get("hits", [])
+    # Maintain backwards-compatible relevant_knowledge_items shape for mock generate_sales_reply,
+    # but derive it from the Retriever result so retrieval has a single source of truth.
+    compat_knowledge = [_knowledge_dict_from_hit(h) for h in hits]
+    hit_ids = [h["knowledge_item_id"] for h in hits]
+    hit_item_map = {}
+    if hit_ids:
+        hit_items = db.query(KnowledgeItem).filter(
+            KnowledgeItem.workspace_id == wid,
+            KnowledgeItem.status == "active",
+            KnowledgeItem.id.in_(hit_ids),
+        ).all()
+        hit_item_map = {it.id: it for it in hit_items}
+    risk_notes = _collect_risk_notes(db, wid, services, [hit_item_map[i] for i in hit_ids if i in hit_item_map])
 
     matched_services = [_service_dict(s) for s in services]
 
@@ -125,7 +124,7 @@ def build_sales_reply_context_pack(db: Session, opportunity_id: str) -> dict:
 
     usage = {
         "used_service_ids": service_ids,
-        "used_knowledge_item_ids": [h["knowledge_item_id"] for h in citation_pack.get("hits", [])],
+        "used_knowledge_item_ids": hit_ids,
         "service_hit_count": service_hits,
         "knowledge_hit_count": knowledge_hits,
         "citation_count": knowledge_hits,
@@ -133,7 +132,7 @@ def build_sales_reply_context_pack(db: Session, opportunity_id: str) -> dict:
         "retriever_version": citation_pack.get("retriever_version"),
         "context_pack_summary": context_summary,
         "service_names": [s["name"] for s in matched_services],
-        "knowledge_titles": [h["title"] for h in citation_pack.get("hits", [])],
+        "knowledge_titles": [h["title"] for h in hits],
     }
 
     ctx.update({

@@ -156,7 +156,10 @@ def retrieve_knowledge_for_sales_reply(
     ]
     doc_map: dict[str, KnowledgeDocument] = {}
     if doc_ids:
-        docs = db.query(KnowledgeDocument).filter(KnowledgeDocument.id.in_(doc_ids)).all()
+        docs = db.query(KnowledgeDocument).filter(
+            KnowledgeDocument.workspace_id == workspace_id,
+            KnowledgeDocument.id.in_(doc_ids),
+        ).all()
         doc_map = {d.id: d for d in docs}
 
     hits: list[dict] = []
