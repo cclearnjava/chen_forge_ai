@@ -163,6 +163,8 @@ def bulk_update_review_items(
 
     from app.services.service_catalog import get_service_or_none
     if action in ("set_service", "clear_service"):
+        if action == "set_service" and not service_id:
+            raise ValueError("service_id is required for set_service")
         if action == "set_service" and service_id:
             svc = get_service_or_none(db, workspace_id, service_id)
             if not svc:

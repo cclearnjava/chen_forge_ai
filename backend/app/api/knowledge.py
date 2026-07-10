@@ -108,7 +108,10 @@ def list_review_api(
     doc_map = {}
     if doc_ids:
         from app.models import KnowledgeDocument as KD
-        docs = db.query(KD).filter(KD.id.in_(doc_ids)).all()
+        docs = db.query(KD).filter(
+            KD.workspace_id == wid,
+            KD.id.in_(doc_ids),
+        ).all()
         doc_map = {d.id: d for d in docs}
     out_items = []
     dup_map = {}

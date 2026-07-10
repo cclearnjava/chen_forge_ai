@@ -121,6 +121,13 @@ class TestBulkActions:
         r = _bulk(client, ["does-not-exist"], "activate")
         assert r.status_code == 422
 
+    def test_set_service_requires_service_id(self, client: TestClient):
+        init_db()
+        i1 = _item(client, status="draft")
+        r = _bulk(client, [i1["id"]], "set_service")
+        assert r.status_code == 422
+        assert "service_id is required" in r.json()["detail"]
+
     def test_cross_workspace_item_rejected(self, client: TestClient):
         init_db(); db = SessionLocal()
         ws2 = Workspace(slug=f"rvw-ws2-{uuid.uuid4().hex[:6]}", name="RVW WS2", is_default=False)
@@ -129,6 +136,23 @@ class TestBulkActions:
         db.add(other); db.commit(); oid = other.id; db.close()
         r = _bulk(client, [oid], "activate")
         assert r.status_code == 422
+
+    def test_review_document_ref_does_not_leak_other_workspace_filename(self, client: TestClient):
+        init_db(); db = SessionLocal()
+        ws2 = Workspace(slug=f"rvw-doc-ws2-{uuid.uuid4().hex[:6]}", name="RVW DOC WS2", is_default=False)
+        db.add(ws2); db.commit()
+        foreign_doc = KnowledgeDocument(workspace_id=ws2.id, filename="secret-other-workspace.pdf",
+                                        storage_path="x", status="processed")
+        db.add(foreign_doc); db.commit()
+        db.close()
+
+        item = _item(client, status="draft", source_type="external_doc",
+                     metadata_json={"document_id": foreign_doc.id})
+        r = _review(client, document_id=foreign_doc.id)
+        assert r.status_code == 200
+        found = [it for it in r.json()["items"] if it["item"]["id"] == item["id"]]
+        assert found
+        assert found[0]["document"] is None
 
 
 class TestDocumentReview:
