@@ -1678,6 +1678,20 @@ h3 {
 
 .citation-empty a:hover { color: var(--copper-dark); }
 
+.vector-status-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  border: 1px solid var(--line);
+}
+
+.vector-status-indexed { background: rgba(66, 104, 75, 0.1); color: var(--moss); }
+.vector-status-stale { background: rgba(184, 95, 54, 0.1); color: var(--copper-dark); }
+.vector-status-failed { background: rgba(220, 38, 38, 0.08); color: var(--copper-dark); }
+.vector-status-indexing { background: rgba(40, 94, 115, 0.1); color: var(--blueprint); }
+
 .context-usage-card .context-usage-counts {
   display: flex;
   gap: 24px;

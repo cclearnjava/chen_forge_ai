@@ -5,7 +5,8 @@ import AdminShell from "@/components/admin/admin-shell";
 import {
   archiveKnowledgeItem, bulkUpdateKnowledgeReviewItems, createKnowledgeItem,
   getKnowledgeDocuments, getKnowledgeItems, getKnowledgeReviewItems,
-  getNotificationSummary, getServices, reindexActiveKnowledge,
+  getNotificationSummary, getServices,
+  reindexActiveKnowledge, reindexKnowledgeItem,
   updateKnowledgeItem, uploadKnowledgeDocument,
   KNOWLEDGE_SOURCE_TYPES, type KnowledgeDocumentOut, type KnowledgeItemInput,
   type KnowledgeItemOut, type KnowledgeReviewItemOut, type ServiceOut,
@@ -82,6 +83,7 @@ export default function KnowledgePage() {
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkService, setBulkService] = useState("");
   const [indexing, setIndexing] = useState(false);
+  const [vectorStatuses, setVectorStatuses] = useState<Record<string, string>>({});
 
   const loadDocuments = useCallback(() => {
     getKnowledgeDocuments().then((r) => setDocuments(r.items)).catch(() => {});
@@ -168,6 +170,16 @@ export default function KnowledgePage() {
       setError(e instanceof Error ? e.message : "索引失败");
     } finally {
       setIndexing(false);
+    }
+  };
+
+  const handleSingleReindex = async (id: string) => {
+    setVectorStatuses((prev) => ({ ...prev, [id]: "indexing" }));
+    try {
+      const res = await reindexKnowledgeItem(id);
+      setVectorStatuses((prev) => ({ ...prev, [id]: res.status }));
+    } catch {
+      setVectorStatuses((prev) => ({ ...prev, [id]: "failed" }));
     }
   };
 
@@ -371,6 +383,9 @@ export default function KnowledgePage() {
                   {it.service_id && serviceName(it.service_id) && <span>服务：{serviceName(it.service_id)}</span>}
                   {(it.tags_json || []).map((t) => <span key={t} className="knowledge-tag">#{t}</span>)}
                   <span>更新于 {new Date(it.updated_at).toLocaleDateString()}</span>
+                  {vectorStatuses[it.id] && (
+                    <span className={`vector-status-badge vector-status-${vectorStatuses[it.id]}`}>{vectorStatuses[it.id] === "indexing" ? "索引中" : vectorStatuses[it.id] === "indexed" ? "已索引" : vectorStatuses[it.id] === "stale" ? "待更新" : vectorStatuses[it.id] === "failed" ? "失败" : vectorStatuses[it.id]}</span>
+                  )}
                 </span>
               </div>
               <div className="knowledge-actions">
@@ -382,6 +397,13 @@ export default function KnowledgePage() {
                 ) : (
                   <>
                     <button className="button ghost small" onClick={() => startEdit(it)}>编辑</button>
+                    {it.status === "active" && (
+                      <button className="button ghost small"
+                        disabled={vectorStatuses[it.id] === "indexing"}
+                        onClick={() => handleSingleReindex(it.id)}>
+                        {vectorStatuses[it.id] === "indexing" ? "索引中" : "索引"}
+                      </button>
+                    )}
                     {it.status !== "archived" && <button className="button ghost small" onClick={() => setConfirmArchive(it.id)}>归档</button>}
                   </>
                 )}
