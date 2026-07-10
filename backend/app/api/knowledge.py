@@ -119,13 +119,26 @@ def list_review_api(
         ).all()
         doc_map = {d.id: d for d in docs}
     out_items = []
-    dup_map = {}
     from app.services.knowledge_review import _duplicate_title_map, build_quality_flags
     dup_map = _duplicate_title_map(db, wid)
+    # Cross-doc chunk fingerprint dedup — same fingerprint appearing >1 time across items
+    dup_fp_map: set[str] = set()
+    chunk_fps = [
+        (it.metadata_json or {}).get("chunk_fingerprint")
+        for it in page if it.metadata_json
+    ]
+    fp_counts = {}
+    for fp in chunk_fps:
+        if fp:
+            fp_counts[fp] = fp_counts.get(fp, 0) + 1
+    dup_fp_map = {fp for fp, cnt in fp_counts.items() if cnt > 1}
     for it in page:
         flags = build_quality_flags(db, wid, it)
         if dup_map.get(it.title):
             flags.append("duplicate_title")
+        fp = (it.metadata_json or {}).get("chunk_fingerprint")
+        if fp and fp in dup_fp_map:
+            flags.append("duplicate_content")
         doc_ref = None
         did = (it.metadata_json or {}).get("document_id") if it.metadata_json else None
         if did and did in doc_map:

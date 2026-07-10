@@ -13,6 +13,10 @@ from app.config import settings
 from app.models import KnowledgeDocument, KnowledgeItem, KnowledgeSource
 from app.services.events import record_event
 from app.services.knowledge_document_storage import save_knowledge_document_file
+from app.services.knowledge_quality import (
+    build_chunk_quality_metadata, build_quality_flags_for_clean_chunk,
+    clean_extracted_text,
+)
 
 SUPPORTED_EXTS = {
     ".txt": "text_v1",
@@ -221,24 +225,52 @@ def process_uploaded_knowledge_document(
         source = _ensure_external_doc_source(db, workspace_id)
         doc.source_id = source.id
 
-        chunks = chunk_document(text)
+        # ── Quality Pipeline: clean raw extracted text before chunking ──
+        clean_result = clean_extracted_text(text)
+        clean_text = clean_result["clean_text"]
+        if not clean_text.strip():
+            raise ValueError("Cleaning removed all content")
+
+        chunks = chunk_document(clean_text)
         if not chunks:
             raise ValueError("No extractable content in document")
 
         items = []
+        chunk_count = len(chunks)
         for ch in chunks:
+            chunk_meta = build_chunk_quality_metadata(
+                document_metadata=clean_result["metadata"],
+                chunk_text=ch["content_markdown"],
+                chunk_index=ch["chunk_index"],
+                chunk_count=chunk_count,
+            )
+            quality_flags = build_quality_flags_for_clean_chunk(
+                title=ch["title"], content=ch["content_markdown"], clean_result=clean_result,
+            )
             item = KnowledgeItem(
                 workspace_id=workspace_id, source_id=source.id,
                 title=ch["title"], summary=ch["summary"], content_markdown=ch["content_markdown"],
                 source_type="external_doc", status="draft",
-                metadata_json={"document_id": doc.id, "chunk_index": ch["chunk_index"]},
+                metadata_json={
+                    "document_id": doc.id, "chunk_index": ch["chunk_index"],
+                    "chunk_count": chunk_count,
+                    "document_filename": filename,
+                    "document_content_type": content_type,
+                    **chunk_meta,
+                    "chunk_quality_flags": quality_flags,
+                },
             )
             db.add(item)
             items.append(item)
         db.flush()
 
         doc.item_count = len(items)
-        doc.text_excerpt = text[:500]
+        doc.text_excerpt = clean_text[:500]
+        doc.metadata_json = {
+            **clean_result["metadata"],
+            "quality_warnings": clean_result.get("warnings", []),
+            "created_item_count": len(items),
+        }
         doc.status = "processed"
 
         record_event(

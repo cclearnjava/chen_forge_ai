@@ -131,6 +131,8 @@ export default function KnowledgePage() {
   const QUALITY_FLAG_LABELS: Record<string, string> = {
     short_content: "正文偏短", missing_summary: "缺少摘要", missing_service: "未关联服务",
     duplicate_title: "标题重复", missing_tags: "缺少标签", external_doc_without_document_id: "缺少来源文档",
+    high_noise_removed: "已移除较多噪音", very_short_after_cleaning: "清洗后内容偏短",
+    duplicate_content: "内容疑似重复", weak_title: "标题质量较弱", cleaning_removed_all_content: "清洗后无有效内容",
   };
 
   const handleBulk = async (action: "activate" | "archive" | "set_service" | "clear_service") => {
@@ -240,6 +242,9 @@ export default function KnowledgePage() {
                   {d.parser && <span>{PARSER_LABELS[d.parser] || d.parser}</span>}
                   <span>{new Date(d.created_at).toLocaleString()}</span>
                   {d.error_message && <span className="document-error">{d.error_message}</span>}
+                  {d.metadata_json && (d.metadata_json as Record<string, unknown>).removed_line_count != null && (
+                    <span>清洗移除 {(d.metadata_json as Record<string, unknown>).removed_line_count as number} 处</span>
+                  )}
                   <button className="button ghost small" onClick={() => viewDocDrafts(d.id)}>查看草稿</button>
                 </span>
               </div>

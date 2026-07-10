@@ -33,6 +33,15 @@ def build_quality_flags(db: Session, workspace_id: str, item: KnowledgeItem) -> 
         md = item.metadata_json or {}
         if not md.get("document_id"):
             flags.append("external_doc_without_document_id")
+        # Quality pipeline flags embedded in chunk metadata (P6.5)
+        chunk_flags = md.get("chunk_quality_flags")
+        if isinstance(chunk_flags, list):
+            for f in chunk_flags:
+                if f not in flags and f in (
+                    "high_noise_removed", "very_short_after_cleaning",
+                    "duplicate_content", "weak_title", "cleaning_removed_all_content",
+                ):
+                    flags.append(f)
     return flags
 
 
