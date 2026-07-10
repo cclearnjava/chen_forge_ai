@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.models import KnowledgeDocument, KnowledgeItem
 from app.services.text_utils import as_text_list, bigrams, overlap_score
 
-RETRIEVER_VERSION = "knowledge_retriever.keyword_v1"
+RETRIEVER_VERSION = "knowledge_retriever.hybrid_v1"
 DEFAULT_MAX_HITS = 5
 EXCERPT_LEN = 220
 
@@ -140,19 +140,59 @@ def retrieve_knowledge_for_sales_reply(
             "hits": [],
         }
 
-    scored: list[tuple[KnowledgeItem, int, list[str]]] = []
+    # ── keyword scoring ──
+    kw_scored: list[tuple[KnowledgeItem, int, list[str]]] = []
+    item_map = {it.id: it for it in items}
     for it in items:
         s, reasons = score_knowledge_item(it, query_text, svc_ids)
         if s > 0:
-            scored.append((it, s, reasons))
+            kw_scored.append((it, s, reasons))
+    kw_map: dict[str, int] = {it.id: s for it, s, _ in kw_scored}
 
-    scored.sort(key=lambda t: (-t[1], -(t[0].updated_at.timestamp() if t[0].updated_at else 0), t[0].id))
+    # ── vector scoring ──
+    from app.services.knowledge_vectors import search_vectors
+    vec_hits = search_vectors(db, workspace_id, query_text, max_hits=max_hits)
+    vec_map: dict[str, float] = {h["knowledge_item_id"]: h["score"] * 20 for h in vec_hits}
+
+    # ── merge ──
+    VEC_WEIGHT = 20.0
+    merged_ids: set[str] = set(kw_map.keys()) | set(vec_map.keys())
+    merged: list[tuple[str, float, float, list[str], str]] = []  # (id, final, kw, reasons, mode)
+    for iid in merged_ids:
+        kw_s = kw_map.get(iid, 0)
+        vec_s = vec_map.get(iid, 0.0)
+        it = item_map.get(iid)
+        reasons: list[str] = []
+        mode = "keyword"
+
+        if kw_s > 0:
+            scored_reasons = [r for it2, _, r in kw_scored if it2.id == iid]
+            reasons = scored_reasons[0] if scored_reasons else []
+            mode = "keyword"
+
+        if vec_s > 0:
+            if "vector" not in reasons:
+                reasons.append("vector")
+            mode = "hybrid" if kw_s > 0 else "vector"
+
+        # Apply service-link boost for merged items
+        final = kw_s + vec_s
+        if it and it.service_id and it.service_id in svc_ids:
+            final += W_SERVICE_LINK
+        st = (it.source_type or "") if it else ""
+        st_bonus = W_SOURCE_TYPE_PRIORITY.get(st, 0)
+        if st_bonus:
+            final += st_bonus
+
+        merged.append((iid, final, kw_s, vec_s, reasons, mode))
+
+    merged.sort(key=lambda t: (-t[1], -(item_map[t[0]].updated_at.timestamp() if item_map.get(t[0]) and item_map[t[0]].updated_at else 0), t[0]))
 
     # Bulk-lookup KnowledgeDocument filenames for external_doc items
     doc_ids = [
         (it.metadata_json or {}).get("document_id")
-        for it, _, _ in scored
-        if it.source_type == "external_doc" and it.metadata_json
+        for iid, _, _, _, _, _ in merged
+        if (it := item_map.get(iid)) and it.source_type == "external_doc" and it.metadata_json
     ]
     doc_map: dict[str, KnowledgeDocument] = {}
     if doc_ids:
@@ -163,7 +203,10 @@ def retrieve_knowledge_for_sales_reply(
         doc_map = {d.id: d for d in docs}
 
     hits: list[dict] = []
-    for it, s, reasons in scored[:max_hits]:
+    for iid, final, kw_s, vec_s, reasons, mode in merged[:max_hits]:
+        it = item_map.get(iid)
+        if not it:
+            continue
         excerpt = _build_excerpt(it.content_markdown or "")
         source = _citation_source(it, doc_map)
         hits.append({
@@ -172,8 +215,11 @@ def retrieve_knowledge_for_sales_reply(
             "summary": it.summary,
             "source_type": it.source_type or "unknown",
             "service_id": it.service_id,
-            "score": s,
+            "score": int(final),
+            "keyword_score": kw_s if kw_s > 0 else None,
+            "vector_score": round(vec_s, 4) if vec_s > 0 else None,
             "match_reasons": reasons,
+            "retrieval_mode": mode,
             "excerpt": excerpt,
             "tags": it.tags_json or [],
             "source": source,

@@ -747,6 +747,32 @@ export async function getKnowledgeDocumentReview(
   return api(`/admin/knowledge/documents/${documentId}/review`);
 }
 
+/* ── Vector RAG (P6.5) ── */
+
+export type KnowledgeVectorStatusOut = {
+  knowledge_item_id: string;
+  status: "not_indexed" | "indexed" | "stale" | "failed";
+  provider?: string | null;
+  embedding_model?: string | null;
+  vector_dim?: number | null;
+  content_hash?: string | null;
+  stale: boolean;
+  indexed_at?: string | null;
+  error_message?: string | null;
+};
+
+export async function getKnowledgeVectorStatus(id: string): Promise<KnowledgeVectorStatusOut> {
+  return api(`/admin/knowledge/${id}/vector`);
+}
+
+export async function reindexKnowledgeItem(id: string): Promise<{ knowledge_item_id: string; status: string; embedding_model: string }> {
+  return api(`/admin/knowledge/${id}/vector/reindex`, { method: "POST" });
+}
+
+export async function reindexActiveKnowledge(limit?: number): Promise<{ indexed_count: number; skipped_count: number; failed_count: number }> {
+  return api("/admin/knowledge/vectors/reindex-active", { method: "POST", body: JSON.stringify({ limit: limit ?? 100 }) });
+}
+
 
 /* ── External Connectors (P5) ── */
 

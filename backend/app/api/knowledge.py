@@ -17,6 +17,9 @@ from app.services.knowledge_review import (
     build_quality_flags, bulk_update_review_items, get_document_review,
     list_review_items,
 )
+from app.services.knowledge_vectors import (
+    get_vector_status, index_knowledge_item, reindex_active_knowledge,
+)
 from app.services.events import record_event
 from app.schemas import (
     KnowledgeItemCreate, KnowledgeItemOut, KnowledgeItemUpdate,
@@ -24,6 +27,8 @@ from app.schemas import (
     KnowledgeDocumentOut, KnowledgeDocumentReviewOut,
     KnowledgeReviewBulkRequest, KnowledgeReviewBulkOut,
     KnowledgeReviewItemOut,
+    KnowledgeVectorReindexRequest, KnowledgeVectorReindexOut,
+    KnowledgeVectorStatusOut,
 )
 from app.models import KnowledgeItem, KnowledgeSource
 
@@ -193,6 +198,17 @@ def create_source_api(req: KnowledgeSourceCreate, db: Session = Depends(get_db),
     return KnowledgeSourceOut.model_validate(src).model_dump(mode="json")
 
 
+# ── Vector RAG (P6.5, declared before /{knowledge_id} to avoid path capture) ──
+
+@router.post("/vectors/reindex-active")
+def reindex_active_api(req: KnowledgeVectorReindexRequest = KnowledgeVectorReindexRequest(),
+                       db: Session = Depends(get_db), _admin: str = Depends(get_admin_email)):
+    wid = get_current_workspace_id(db)
+    result = reindex_active_knowledge(db, wid, limit=req.limit)
+    db.commit()
+    return KnowledgeVectorReindexOut(**result).model_dump(mode="json")
+
+
 # ── Knowledge items ──
 
 @router.get("")
@@ -257,3 +273,26 @@ def archive_item_api(knowledge_id: str, db: Session = Depends(get_db), _admin: s
                  subject_type="knowledge_item", subject_id=item.id, title=f"知识已归档: {item.title}")
     db.commit()
     return KnowledgeItemOut.model_validate(item).model_dump(mode="json")
+
+
+@router.get("/{knowledge_id}/vector")
+def get_vector_status_api(knowledge_id: str, db: Session = Depends(get_db), _admin: str = Depends(get_admin_email)):
+    wid = get_current_workspace_id(db)
+    try:
+        status = get_vector_status(db, wid, knowledge_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return status
+
+
+@router.post("/{knowledge_id}/vector/reindex")
+def reindex_item_api(knowledge_id: str, db: Session = Depends(get_db), _admin: str = Depends(get_admin_email)):
+    wid = get_current_workspace_id(db)
+    try:
+        vec = index_knowledge_item(db, wid, knowledge_id)
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
+    return {"knowledge_item_id": vec.knowledge_item_id, "status": vec.status,
+            "embedding_model": vec.embedding_model}

@@ -817,6 +817,38 @@ class KnowledgeDocumentReviewOut(BaseModel):
     quality_summary: dict[str, int] = Field(default_factory=dict)
 
 
+class KnowledgeVectorOut(BaseModel):
+    id: str; workspace_id: str | None = None
+    knowledge_item_id: str; provider: str; embedding_model: str
+    content_hash: str; vector_dim: int = 0
+    status: str; error_message: str | None = None
+    indexed_at: datetime | None = None
+    created_at: datetime; updated_at: datetime
+    model_config = {"from_attributes": True}
+
+
+class KnowledgeVectorStatusOut(BaseModel):
+    knowledge_item_id: str
+    status: str  # not_indexed / indexed / stale / failed
+    provider: str | None = None
+    embedding_model: str | None = None
+    vector_dim: int | None = None
+    content_hash: str | None = None
+    stale: bool = False
+    indexed_at: datetime | None = None
+    error_message: str | None = None
+
+
+class KnowledgeVectorReindexRequest(BaseModel):
+    limit: int = Field(default=100, ge=1, le=100)
+
+
+class KnowledgeVectorReindexOut(BaseModel):
+    indexed_count: int = 0
+    skipped_count: int = 0
+    failed_count: int = 0
+
+
 # ── External Connector (P5) ──
 
 _CONNECTOR_PROVIDERS = ("mock", "email", "feishu", "wechat_work")

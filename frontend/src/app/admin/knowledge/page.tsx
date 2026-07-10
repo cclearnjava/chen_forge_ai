@@ -5,7 +5,8 @@ import AdminShell from "@/components/admin/admin-shell";
 import {
   archiveKnowledgeItem, bulkUpdateKnowledgeReviewItems, createKnowledgeItem,
   getKnowledgeDocuments, getKnowledgeItems, getKnowledgeReviewItems,
-  getNotificationSummary, getServices, updateKnowledgeItem, uploadKnowledgeDocument,
+  getNotificationSummary, getServices, reindexActiveKnowledge,
+  updateKnowledgeItem, uploadKnowledgeDocument,
   KNOWLEDGE_SOURCE_TYPES, type KnowledgeDocumentOut, type KnowledgeItemInput,
   type KnowledgeItemOut, type KnowledgeReviewItemOut, type ServiceOut,
 } from "@/lib/admin-api";
@@ -80,6 +81,7 @@ export default function KnowledgePage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkService, setBulkService] = useState("");
+  const [indexing, setIndexing] = useState(false);
 
   const loadDocuments = useCallback(() => {
     getKnowledgeDocuments().then((r) => setDocuments(r.items)).catch(() => {});
@@ -155,6 +157,18 @@ export default function KnowledgePage() {
 
   const viewDocDrafts = (docId: string) => { setReviewDoc(docId); setStatus("draft"); };
 
+  const handleBatchReindex = async () => {
+    setIndexing(true); setError(null);
+    try {
+      const res = await reindexActiveKnowledge(100);
+      setError(`已索引 ${res.indexed_count} 条，跳过 ${res.skipped_count} 条${res.failed_count > 0 ? `，失败 ${res.failed_count} 条` : ""}`);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "索引失败");
+    } finally {
+      setIndexing(false);
+    }
+  };
+
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
   const startCreate = () => { setDraft(emptyDraft); setEditId(null); setFormError(null); setEditorOpen(true); };
   const startEdit = (it: KnowledgeItemOut) => { setDraft(toDraft(it)); setEditId(it.id); setFormError(null); setEditorOpen(true); };
@@ -200,6 +214,7 @@ export default function KnowledgePage() {
           ))}
         </div>
         <button className="button primary" onClick={startCreate}>新增知识</button>
+        <button className="button ghost small" onClick={handleBatchReindex} disabled={indexing}>{indexing ? "索引中..." : "批量索引"}</button>
       </section>
 
       <section className="knowledge-upload">

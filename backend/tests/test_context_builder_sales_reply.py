@@ -72,7 +72,7 @@ class TestContextBuilder:
         assert pack["usage"]["service_hit_count"] >= 1
         # Citation pack is present
         assert "citation_pack" in pack
-        assert pack["citation_pack"]["retriever_version"] == "knowledge_retriever.keyword_v1"
+        assert pack["citation_pack"]["retriever_version"] == "knowledge_retriever.hybrid_v1"
 
     def test_matches_active_knowledge(self):
         init_db(); db = SessionLocal()
@@ -161,11 +161,11 @@ class TestSalesReplyContextIntegration:
         assert "used_service_ids" in usage
         assert "used_knowledge_item_ids" in usage
         assert usage["context_builder_version"] == "context_builder.sales_reply.v1"
-        assert usage["retriever_version"] == "knowledge_retriever.keyword_v1"
+        assert usage["retriever_version"] == "knowledge_retriever.hybrid_v1"
         # Citation pack is stored alongside context_usage
         citations = draft.content_json.get("citations")
         assert citations is not None and "hits" in citations
-        assert citations["retriever_version"] == "knowledge_retriever.keyword_v1"
+        assert citations["retriever_version"] == "knowledge_retriever.hybrid_v1"
 
     def test_reply_reflects_context(self):
         init_db(); db = SessionLocal()

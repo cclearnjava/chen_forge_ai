@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { CitationPack } from "@/lib/admin-api";
+import type { CitationPack, KnowledgeCitationHit } from "@/lib/admin-api";
 
 const SOURCE_TYPE_LABELS: Record<string, string> = {
   manual: "手工录入", faq: "FAQ", case_study: "案例", methodology: "方法论",
@@ -9,6 +9,10 @@ const SOURCE_TYPE_LABELS: Record<string, string> = {
 const MATCH_REASON_LABELS: Record<string, string> = {
   title: "标题匹配", summary: "摘要匹配", content: "正文匹配",
   tags: "标签匹配", service_link: "关联服务", source_type_priority: "类型优先",
+  vector: "语义匹配",
+};
+const RETRIEVAL_MODE_LABELS: Record<string, string> = {
+  keyword: "关键词命中", vector: "语义命中", hybrid: "混合命中",
 };
 
 export default function CitationPackView({ citations }: { citations: CitationPack | null }) {
@@ -36,6 +40,9 @@ export default function CitationPackView({ citations }: { citations: CitationPac
               {h.excerpt && <span className="citation-excerpt">{h.excerpt}</span>}
             </div>
             <div className="citation-meta">
+              {((h as KnowledgeCitationHit & { retrieval_mode?: string }).retrieval_mode) && (
+                <span className="retrieval-mode-tag">{RETRIEVAL_MODE_LABELS[(h as KnowledgeCitationHit & { retrieval_mode?: string }).retrieval_mode!] || (h as KnowledgeCitationHit & { retrieval_mode?: string }).retrieval_mode}</span>
+              )}
               <span>{SOURCE_TYPE_LABELS[h.source_type] || h.source_type}</span>
               {h.source?.document_filename && (
                 <span>{h.source.document_filename}{h.source.chunk_index != null ? ` · 片段 ${h.source.chunk_index + 1}` : ""}</span>
