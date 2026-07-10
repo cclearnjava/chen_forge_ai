@@ -1,4 +1,4 @@
-"""Knowledge Vector Service — content hash, index, reindex, vector search (P6.5).
+"""Knowledge Vector Service — content hash, index, reindex, vector search (P6.6).
 
 All operations are workspace-scoped. draft / archived items are never indexed.
 Vector search uses Python cosine similarity over JSON-stored vectors (SQLite-friendly).

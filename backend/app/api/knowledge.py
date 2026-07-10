@@ -211,7 +211,7 @@ def create_source_api(req: KnowledgeSourceCreate, db: Session = Depends(get_db),
     return KnowledgeSourceOut.model_validate(src).model_dump(mode="json")
 
 
-# ── Vector RAG (P6.5, declared before /{knowledge_id} to avoid path capture) ──
+# ── Vector RAG (P6.6, declared before /{knowledge_id} to avoid path capture) ──
 
 @router.post("/vectors/reindex-active")
 def reindex_active_api(req: KnowledgeVectorReindexRequest = KnowledgeVectorReindexRequest(),

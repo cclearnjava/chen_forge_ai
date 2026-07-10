@@ -1,6 +1,6 @@
 """Embedding Provider abstraction — deterministic mock for MVP, zero network.
 
-P6.5: mock_hash_embedding_v1 produces a stable 64-dim L2-normalized vector from
+P6.6: mock_hash_embedding_v1 produces a stable 64-dim L2-normalized vector from
 any text input using deterministic SHA-256 → hash-bucket mapping. Same text always
 produces the same vector — stable for CI and local testing. Real providers (OpenAI-
 compatible / local sentence-transformer) are deferred to P6.6.

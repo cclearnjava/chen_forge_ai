@@ -747,7 +747,7 @@ export async function getKnowledgeDocumentReview(
   return api(`/admin/knowledge/documents/${documentId}/review`);
 }
 
-/* ── Vector RAG (P6.5) ── */
+/* ── Vector RAG (P6.6) ── */
 
 export type KnowledgeVectorStatusOut = {
   knowledge_item_id: string;

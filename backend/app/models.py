@@ -765,7 +765,7 @@ class KnowledgeDocument(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
 
-# ── Vector RAG (P6.5) ──
+# ── Vector RAG (P6.6) ──
 
 KNOWLEDGE_VECTOR_STATUSES = ("not_indexed", "indexed", "stale", "failed")
 
