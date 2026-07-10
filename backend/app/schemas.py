@@ -750,6 +750,44 @@ class KnowledgeItemListOut(BaseModel):
     total: int = 0
 
 
+class KnowledgeReviewDocumentRef(BaseModel):
+    id: str
+    filename: str
+
+
+class KnowledgeReviewItemOut(BaseModel):
+    item: KnowledgeItemOut
+    quality_flags: list[str] = Field(default_factory=list)
+    document: KnowledgeReviewDocumentRef | None = None
+
+
+class KnowledgeReviewListOut(BaseModel):
+    items: list[KnowledgeReviewItemOut] = Field(default_factory=list)
+    total: int = 0
+
+
+class KnowledgeReviewBulkRequest(BaseModel):
+    item_ids: list[str] = Field(..., min_length=1, max_length=100)
+    action: str
+    service_id: str | None = None
+
+    @field_validator("action")
+    @classmethod
+    def _check_action(cls, v: str) -> str:
+        if v not in ("activate", "archive", "set_service", "clear_service"):
+            raise ValueError(f"Invalid action: {v}")
+        return v
+
+
+class KnowledgeReviewBulkOut(BaseModel):
+    updated_count: int = 0
+    items: list[KnowledgeItemOut] = Field(default_factory=list)
+
+
+class KnowledgeDocumentReviewCounts(BaseModel):
+    total: int = 0; draft: int = 0; active: int = 0; archived: int = 0
+
+
 class KnowledgeDocumentOut(BaseModel):
     id: str; workspace_id: str | None = None
     source_id: str | None = None
@@ -770,6 +808,13 @@ class KnowledgeDocumentUploadOut(BaseModel):
 class KnowledgeDocumentListOut(BaseModel):
     items: list[KnowledgeDocumentOut] = Field(default_factory=list)
     total: int = 0
+
+
+class KnowledgeDocumentReviewOut(BaseModel):
+    document: KnowledgeDocumentOut
+    items: list[KnowledgeItemOut] = Field(default_factory=list)
+    counts: KnowledgeDocumentReviewCounts = Field(default_factory=KnowledgeDocumentReviewCounts)
+    quality_summary: dict[str, int] = Field(default_factory=dict)
 
 
 # ── External Connector (P5) ──

@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import AdminShell from "@/components/admin/admin-shell";
 import {
-  archiveKnowledgeItem, createKnowledgeItem, getKnowledgeDocuments, getKnowledgeItems,
+  archiveKnowledgeItem, bulkUpdateKnowledgeReviewItems, createKnowledgeItem,
+  getKnowledgeDocuments, getKnowledgeItems, getKnowledgeReviewItems,
   getNotificationSummary, getServices, updateKnowledgeItem, uploadKnowledgeDocument,
   KNOWLEDGE_SOURCE_TYPES, type KnowledgeDocumentOut, type KnowledgeItemInput,
-  type KnowledgeItemOut, type ServiceOut,
+  type KnowledgeItemOut, type KnowledgeReviewItemOut, type ServiceOut,
 } from "@/lib/admin-api";
 
 const SOURCE_TYPE_LABELS: Record<string, string> = {
@@ -72,9 +73,27 @@ export default function KnowledgePage() {
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState<string | null>(null);
 
+  const [reviewItems, setReviewItems] = useState<KnowledgeReviewItemOut[]>([]);
+  const [reviewTotal, setReviewTotal] = useState(0);
+  const [reviewDoc, setReviewDoc] = useState("");
+  const [reviewQuality, setReviewQuality] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkService, setBulkService] = useState("");
+
   const loadDocuments = useCallback(() => {
     getKnowledgeDocuments().then((r) => setDocuments(r.items)).catch(() => {});
   }, []);
+
+  const loadReview = useCallback(() => {
+    getKnowledgeReviewItems({
+      status: "draft",
+      document_id: reviewDoc || undefined,
+      quality_flag: reviewQuality || undefined,
+    }).then((r) => { setReviewItems(r.items); setReviewTotal(r.total); }).catch(() => {});
+  }, [reviewDoc, reviewQuality]);
+
+  useEffect(() => { loadReview(); }, [loadReview]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -106,6 +125,35 @@ export default function KnowledgePage() {
       setUploading(false);
     }
   };
+
+  const QUALITY_FLAG_LABELS: Record<string, string> = {
+    short_content: "正文偏短", missing_summary: "缺少摘要", missing_service: "未关联服务",
+    duplicate_title: "标题重复", missing_tags: "缺少标签", external_doc_without_document_id: "缺少来源文档",
+  };
+
+  const handleBulk = async (action: "activate" | "archive" | "set_service" | "clear_service") => {
+    if (selectedIds.size === 0) return;
+    setBulkSaving(true); setError(null);
+    try {
+      await bulkUpdateKnowledgeReviewItems({
+        item_ids: Array.from(selectedIds),
+        action,
+        service_id: action === "set_service" ? (bulkService || undefined) : undefined,
+      });
+      setSelectedIds(new Set());
+      loadReview(); load(); loadDocuments();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "批量操作失败");
+    } finally {
+      setBulkSaving(false);
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  };
+
+  const viewDocDrafts = (docId: string) => { setReviewDoc(docId); setStatus("draft"); };
 
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
   const startCreate = () => { setDraft(emptyDraft); setEditId(null); setFormError(null); setEditorOpen(true); };
@@ -177,11 +225,68 @@ export default function KnowledgePage() {
                   {d.parser && <span>{PARSER_LABELS[d.parser] || d.parser}</span>}
                   <span>{new Date(d.created_at).toLocaleString()}</span>
                   {d.error_message && <span className="document-error">{d.error_message}</span>}
+                  <button className="button ghost small" onClick={() => viewDocDrafts(d.id)}>查看草稿</button>
                 </span>
               </div>
             ))}
           </div>
         )}
+      </section>
+
+      {/* ── Review Queue ── */}
+      <section className="knowledge-review">
+        <div className="panel-heading"><h2>审核队列{reviewDoc && " · 按文档筛选"}{reviewTotal > 0 && ` · ${reviewTotal} 条草稿`}</h2></div>
+        <div className="review-toolbar">
+          <div className="stage-filter">
+            <select value={reviewDoc} onChange={(e) => setReviewDoc(e.target.value)}>
+              <option value="">全部文档</option>
+              {documents.map((d) => <option key={d.id} value={d.id}>{d.filename}</option>)}
+            </select>
+          </div>
+          <div className="stage-filter">
+            <select value={reviewQuality} onChange={(e) => setReviewQuality(e.target.value)}>
+              <option value="">全部质量提示</option>
+              {Object.entries(QUALITY_FLAG_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </div>
+          <span className="review-count">已选择 {selectedIds.size} 条</span>
+          <button className="button primary small" disabled={selectedIds.size === 0 || bulkSaving} onClick={() => handleBulk("activate")}>{bulkSaving ? "处理中..." : "启用"}</button>
+          <button className="button ghost small" disabled={selectedIds.size === 0 || bulkSaving} onClick={() => handleBulk("archive")}>归档</button>
+        </div>
+        {selectedIds.size > 0 && (
+          <div className="review-service-bar">
+            <label>绑定服务
+              <select value={bulkService} onChange={(e) => setBulkService(e.target.value)}>
+                <option value="">选择服务</option>
+                {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </label>
+            <button className="button ghost small" disabled={!bulkService || bulkSaving} onClick={() => handleBulk("set_service")}>关联服务</button>
+            <button className="button ghost small" disabled={bulkSaving} onClick={() => handleBulk("clear_service")}>清空关联</button>
+          </div>
+        )}
+        <div className="review-list">
+          {reviewItems.length === 0 ? (
+            <p className="subresource-empty">{reviewDoc ? "该文档没有草稿条目" : "暂无可审核草稿"}</p>
+          ) : (
+            reviewItems.map((r) => (
+              <div key={r.item.id} className={`review-row ${selectedIds.has(r.item.id) ? "selected" : ""}`}>
+                <label className="review-checkbox">
+                  <input type="checkbox" checked={selectedIds.has(r.item.id)} onChange={() => toggleSelect(r.item.id)} />
+                </label>
+                <div className="review-main">
+                  <strong>{r.item.title}</strong>
+                  {r.quality_flags.length > 0 && (
+                    <span className="quality-flags">
+                      {r.quality_flags.map((f) => <span key={f} className="quality-flag">{QUALITY_FLAG_LABELS[f] || f}</span>)}
+                    </span>
+                  )}
+                  {r.document && <small className="review-doc-src">{r.document.filename}</small>}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </section>
 
       {editorOpen && (

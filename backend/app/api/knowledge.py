@@ -13,11 +13,17 @@ from app.services.knowledge_documents import (
     get_knowledge_document_or_none, list_knowledge_documents,
     process_uploaded_knowledge_document,
 )
+from app.services.knowledge_review import (
+    build_quality_flags, bulk_update_review_items, get_document_review,
+    list_review_items,
+)
 from app.services.events import record_event
 from app.schemas import (
     KnowledgeItemCreate, KnowledgeItemOut, KnowledgeItemUpdate,
     KnowledgeSourceCreate, KnowledgeSourceOut,
-    KnowledgeDocumentOut,
+    KnowledgeDocumentOut, KnowledgeDocumentReviewOut,
+    KnowledgeReviewBulkRequest, KnowledgeReviewBulkOut,
+    KnowledgeReviewItemOut,
 )
 from app.models import KnowledgeItem, KnowledgeSource
 
@@ -71,6 +77,97 @@ def get_document_api(document_id: str, db: Session = Depends(get_db), _admin: st
     if not doc:
         raise HTTPException(status_code=404, detail="Knowledge document not found")
     return KnowledgeDocumentOut.model_validate(doc).model_dump(mode="json")
+
+
+# ── Review Queue (P6.4, declared before /{knowledge_id}) ──
+
+@router.get("/review")
+def list_review_api(
+    status: str = Query("draft"),
+    document_id: str | None = Query(None),
+    source_type: str | None = Query(None),
+    service_id: str | None = Query(None),
+    quality_flag: str | None = Query(None),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    _admin: str = Depends(get_admin_email),
+):
+    wid = get_current_workspace_id(db)
+    items = list_review_items(
+        db, wid, status=status, document_id=document_id,
+        source_type=source_type, service_id=service_id, quality_flag=quality_flag,
+    )
+    total = len(items)
+    page = items[offset:offset + limit]
+    doc_ids = list({
+        (it.metadata_json or {}).get("document_id")
+        for it in page
+        if it.source_type == "external_doc" and it.metadata_json
+    })
+    doc_map = {}
+    if doc_ids:
+        from app.models import KnowledgeDocument as KD
+        docs = db.query(KD).filter(KD.id.in_(doc_ids)).all()
+        doc_map = {d.id: d for d in docs}
+    out_items = []
+    dup_map = {}
+    from app.services.knowledge_review import _duplicate_title_map, build_quality_flags
+    dup_map = _duplicate_title_map(db, wid)
+    for it in page:
+        flags = build_quality_flags(db, wid, it)
+        if dup_map.get(it.title):
+            flags.append("duplicate_title")
+        doc_ref = None
+        did = (it.metadata_json or {}).get("document_id") if it.metadata_json else None
+        if did and did in doc_map:
+            doc_ref = {"id": did, "filename": doc_map[did].filename}
+        out_items.append(KnowledgeReviewItemOut(
+            item=KnowledgeItemOut.model_validate(it),
+            quality_flags=flags,
+            document=doc_ref,
+        ).model_dump(mode="json"))
+    return {"items": out_items, "total": total}
+
+
+@router.post("/review/bulk")
+def bulk_review_api(req: KnowledgeReviewBulkRequest, db: Session = Depends(get_db),
+                    _admin: str = Depends(get_admin_email)):
+    wid = get_current_workspace_id(db)
+    try:
+        items = bulk_update_review_items(
+            db, wid, item_ids=req.item_ids, action=req.action, service_id=req.service_id,
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal error")
+    return KnowledgeReviewBulkOut(
+        updated_count=len(items),
+        items=[KnowledgeItemOut.model_validate(it).model_dump(mode="json") for it in items],
+    ).model_dump(mode="json")
+
+
+@router.get("/documents/{document_id}/review")
+def get_document_review_api(document_id: str, db: Session = Depends(get_db),
+                            _admin: str = Depends(get_admin_email)):
+    wid = get_current_workspace_id(db)
+    try:
+        result = get_document_review(db, wid, document_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    doc = result["document"]
+    items = result["items"]
+    flags = [build_quality_flags(db, wid, it) for it in items]
+    return KnowledgeDocumentReviewOut(
+        document=KnowledgeDocumentOut.model_validate(doc),
+        items=[KnowledgeItemOut.model_validate(it).model_dump(mode="json") for it in items],
+        counts=result["counts"],
+        quality_summary=result["quality_summary"],
+    ).model_dump(mode="json")
 
 
 # ── Sources (declared before /{knowledge_id} to avoid path capture) ──

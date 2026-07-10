@@ -688,6 +688,65 @@ export type CitationPack = {
   hits: KnowledgeCitationHit[];
 };
 
+/* ── Knowledge Review / Activation (P6.4) ── */
+
+export type KnowledgeQualityFlag =
+  | "short_content"
+  | "missing_summary"
+  | "missing_service"
+  | "duplicate_title"
+  | "missing_tags"
+  | "external_doc_without_document_id";
+
+export type KnowledgeReviewItemOut = {
+  item: KnowledgeItemOut;
+  quality_flags: KnowledgeQualityFlag[];
+  document?: { id: string; filename: string } | null;
+};
+
+export type KnowledgeReviewListOut = { items: KnowledgeReviewItemOut[]; total: number };
+
+export type KnowledgeReviewBulkRequest = {
+  item_ids: string[];
+  action: "activate" | "archive" | "set_service" | "clear_service";
+  service_id?: string | null;
+};
+
+export type KnowledgeReviewBulkOut = { updated_count: number; items: KnowledgeItemOut[] };
+
+export type KnowledgeDocumentReviewOut = {
+  document: KnowledgeDocumentOut;
+  items: KnowledgeItemOut[];
+  counts: { total: number; draft: number; active: number; archived: number };
+  quality_summary: Record<string, number>;
+};
+
+export async function getKnowledgeReviewItems(params?: {
+  status?: string; document_id?: string; source_type?: string;
+  service_id?: string; quality_flag?: string;
+}): Promise<KnowledgeReviewListOut> {
+  const sp = new URLSearchParams();
+  if (params?.status) sp.set("status", params.status);
+  if (params?.document_id) sp.set("document_id", params.document_id);
+  if (params?.source_type) sp.set("source_type", params.source_type);
+  if (params?.service_id) sp.set("service_id", params.service_id);
+  if (params?.quality_flag) sp.set("quality_flag", params.quality_flag);
+  const qs = sp.toString();
+  return api(`/admin/knowledge/review${qs ? `?${qs}` : ""}`);
+}
+
+export async function bulkUpdateKnowledgeReviewItems(
+  input: KnowledgeReviewBulkRequest,
+): Promise<KnowledgeReviewBulkOut> {
+  return api("/admin/knowledge/review/bulk", { method: "POST", body: JSON.stringify(input) });
+}
+
+export async function getKnowledgeDocumentReview(
+  documentId: string,
+): Promise<KnowledgeDocumentReviewOut> {
+  return api(`/admin/knowledge/documents/${documentId}/review`);
+}
+
 
 /* ── External Connectors (P5) ── */
 

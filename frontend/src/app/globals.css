@@ -1477,6 +1477,115 @@ h3 {
 
 .document-error { color: var(--copper-dark); }
 
+/* ── Knowledge Review Queue ── */
+
+.knowledge-review {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(238, 241, 237, 0.5);
+  margin-bottom: 14px;
+}
+
+.review-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.review-toolbar .stage-filter select {
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.review-count {
+  font-size: 12px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+}
+
+.review-service-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
+}
+
+.review-service-bar select {
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  margin-left: 6px;
+}
+
+.review-list {
+  display: grid;
+  gap: 6px;
+  padding: 10px 16px;
+}
+
+.review-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.review-row.selected {
+  border-color: var(--blueprint);
+  background: rgba(40, 94, 115, 0.06);
+}
+
+.review-checkbox {
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+.review-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.review-main strong { font-size: 13px; }
+
+.review-doc-src {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.quality-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.quality-flag {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  border: 1px solid var(--line);
+  background: rgba(184, 95, 54, 0.08);
+  color: var(--copper-dark);
+}
+
 /* ── Citation Pack ── */
 
 .citation-pack {
