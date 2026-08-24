@@ -26,9 +26,11 @@ export default function AgentWorkbench({
   artifacts,
   agentRuns,
   qualityReview,
+  opportunityId,
 }: {
   artifacts: ArtifactOut[];
   agentRuns: AgentRunOut[];
+  opportunityId?: string;
   qualityReview?: {
     risk_level: "low" | "medium" | "high";
     risk_flags: Array<{ type: string; keyword?: string; detail?: string }>;
@@ -112,7 +114,7 @@ export default function AgentWorkbench({
         </article>
       )}
 
-      <CitationPackView citations={citationPack} />
+      <CitationPackView citations={citationPack} artifactId={draft?.id} opportunityId={opportunityId} />
 
       {questions?.content_json && (
         <article className="workbench-card">

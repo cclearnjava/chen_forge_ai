@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
 
 
@@ -940,6 +940,80 @@ class RetrievalEvalResultOut(BaseModel):
 class RetrievalEvalRunDetailOut(BaseModel):
     run: RetrievalEvalRunOut
     results: list[RetrievalEvalResultOut] = Field(default_factory=list)
+
+
+# ── Knowledge Retrieval Feedback (P6.11) ──
+
+KNOWLEDGE_RETRIEVAL_FEEDBACK_TYPES = ("helpful", "irrelevant", "missing", "outdated", "needs_review")
+KNOWLEDGE_RETRIEVAL_FEEDBACK_STATUSES = ("open", "reviewed", "resolved", "archived")
+KNOWLEDGE_RETRIEVAL_FEEDBACK_SOURCES = (
+    "sales_reply_citation",
+    "retrieval_evaluation_result",
+    "manual_review",
+)
+
+
+class KnowledgeRetrievalFeedbackCreate(BaseModel):
+    feedback_type: str = Field(..., max_length=30)
+    source: str = Field(..., max_length=60)
+    query: str | None = None
+    note: str | None = None
+    knowledge_item_id: str | None = None
+    expected_knowledge_item_id: str | None = None
+    artifact_id: str | None = None
+    retrieval_eval_result_id: str | None = None
+    opportunity_id: str | None = None
+    citation_hit_json: dict | None = None
+    metadata_json: dict | None = None
+
+    @field_validator("feedback_type")
+    @classmethod
+    def validate_feedback_type(cls, value: str) -> str:
+        if value not in KNOWLEDGE_RETRIEVAL_FEEDBACK_TYPES:
+            raise ValueError(f"Invalid feedback_type: {value}")
+        return value
+
+    @field_validator("source")
+    @classmethod
+    def validate_source(cls, value: str) -> str:
+        if value not in KNOWLEDGE_RETRIEVAL_FEEDBACK_SOURCES:
+            raise ValueError(f"Invalid source: {value}")
+        return value
+
+
+class KnowledgeRetrievalFeedbackUpdate(BaseModel):
+    status: str | None = Field(default=None, max_length=20)
+    note: str | None = None
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str | None) -> str | None:
+        if value is not None and value not in KNOWLEDGE_RETRIEVAL_FEEDBACK_STATUSES:
+            raise ValueError(f"Invalid status: {value}")
+        return value
+
+
+class KnowledgeRetrievalFeedbackOut(BaseModel):
+    id: str
+    workspace_id: str
+    feedback_type: str
+    status: str
+    source: str
+    query: str | None = None
+    note: str | None = None
+    knowledge_item_id: str | None = None
+    expected_knowledge_item_id: str | None = None
+    artifact_id: str | None = None
+    retrieval_eval_result_id: str | None = None
+    opportunity_id: str | None = None
+    citation_hit_json: dict | None = None
+    metadata_json: dict | None = None
+    created_by: str | None = None
+    reviewed_at: datetime | None = None
+    resolved_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+    model_config = {"from_attributes": True}
 
 
 # ── External Connector (P5) ──

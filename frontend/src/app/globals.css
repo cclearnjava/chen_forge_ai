@@ -253,6 +253,13 @@ h3 {
   background: rgba(238, 241, 237, 0.72);
 }
 
+.button.tiny {
+  min-height: 22px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 10px;
+}
+
 /* ── Hero panel ── */
 .hero-panel {
   align-self: center;
@@ -1649,6 +1656,20 @@ h3 {
   border: 1px solid var(--line);
   background: rgba(40, 94, 115, 0.08);
   color: var(--blueprint);
+}
+
+.citation-feedback-actions,
+.eval-hit-feedback {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.citation-feedback-error {
+  margin-top: 8px;
+  color: var(--copper-dark);
+  font-size: 12px;
 }
 
 .retrieval-mode-tag {

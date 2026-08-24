@@ -668,6 +668,12 @@ export type KnowledgeCitationHit = {
   source_type: string;
   service_id?: string | null;
   score: number;
+  keyword_score?: number | null;
+  vector_score?: number | null;
+  reranked?: boolean;
+  rerank_score?: number | null;
+  rerank_reason?: string | null;
+  retrieval_mode?: string;
   match_reasons: string[];
   excerpt: string;
   tags?: string[];
@@ -685,8 +691,76 @@ export type CitationPack = {
   query_summary?: string | null;
   hit_count: number;
   no_hit_reason?: string | null;
+  reranker_enabled?: boolean;
+  reranker_provider?: string | null;
+  reranker_model?: string | null;
+  reranker_error?: string | null;
   hits: KnowledgeCitationHit[];
 };
+
+export type KnowledgeRetrievalFeedbackType = "helpful" | "irrelevant" | "missing" | "outdated" | "needs_review";
+export type KnowledgeRetrievalFeedbackStatus = "open" | "reviewed" | "resolved" | "archived";
+export type KnowledgeRetrievalFeedbackSource = "sales_reply_citation" | "retrieval_evaluation_result" | "manual_review";
+
+export type KnowledgeRetrievalFeedbackOut = {
+  id: string;
+  workspace_id: string;
+  feedback_type: KnowledgeRetrievalFeedbackType;
+  status: KnowledgeRetrievalFeedbackStatus;
+  source: KnowledgeRetrievalFeedbackSource;
+  query?: string | null;
+  note?: string | null;
+  knowledge_item_id?: string | null;
+  expected_knowledge_item_id?: string | null;
+  artifact_id?: string | null;
+  retrieval_eval_result_id?: string | null;
+  opportunity_id?: string | null;
+  citation_hit_json?: Record<string, unknown> | null;
+  metadata_json?: Record<string, unknown> | null;
+  created_by?: string | null;
+  reviewed_at?: string | null;
+  resolved_at?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type KnowledgeRetrievalFeedbackInput = {
+  feedback_type: KnowledgeRetrievalFeedbackType;
+  source: KnowledgeRetrievalFeedbackSource;
+  query?: string | null;
+  note?: string | null;
+  knowledge_item_id?: string | null;
+  expected_knowledge_item_id?: string | null;
+  artifact_id?: string | null;
+  retrieval_eval_result_id?: string | null;
+  opportunity_id?: string | null;
+  citation_hit_json?: Record<string, unknown> | null;
+  metadata_json?: Record<string, unknown> | null;
+};
+
+export async function createKnowledgeRetrievalFeedback(data: KnowledgeRetrievalFeedbackInput): Promise<KnowledgeRetrievalFeedbackOut> {
+  return api("/admin/knowledge/retrieval-feedback", { method: "POST", body: JSON.stringify(data) });
+}
+
+export async function getKnowledgeRetrievalFeedback(params?: {
+  status?: string;
+  feedback_type?: string;
+  knowledge_item_id?: string;
+}): Promise<{ items: KnowledgeRetrievalFeedbackOut[]; total: number }> {
+  const sp = new URLSearchParams();
+  if (params?.status) sp.set("status", params.status);
+  if (params?.feedback_type) sp.set("feedback_type", params.feedback_type);
+  if (params?.knowledge_item_id) sp.set("knowledge_item_id", params.knowledge_item_id);
+  const qs = sp.toString();
+  return api(`/admin/knowledge/retrieval-feedback${qs ? `?${qs}` : ""}`);
+}
+
+export async function updateKnowledgeRetrievalFeedback(
+  id: string,
+  data: { status?: KnowledgeRetrievalFeedbackStatus; note?: string | null },
+): Promise<KnowledgeRetrievalFeedbackOut> {
+  return api(`/admin/knowledge/retrieval-feedback/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
 
 /* ── Knowledge Review / Activation (P6.4) ── */
 
@@ -831,18 +905,7 @@ export type RetrievalEvalResultOut = {
     reranker_provider?: string | null;
     reranker_model?: string | null;
     reranker_error?: string | null;
-    hits?: Array<{
-      knowledge_item_id: string;
-      title?: string;
-      score?: number;
-      keyword_score?: number | null;
-      vector_score?: number | null;
-      reranked?: boolean;
-      rerank_score?: number | null;
-      rerank_reason?: string | null;
-      retrieval_mode?: string;
-      match_reasons?: string[];
-    }>;
+    hits?: KnowledgeCitationHit[];
   } | null;
   status: "passed" | "missed" | "empty" | "error";
   error_message?: string | null;

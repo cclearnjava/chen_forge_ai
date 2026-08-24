@@ -20,6 +20,9 @@ from app.services.knowledge_review import (
 from app.services.knowledge_vectors import (
     get_vector_status, index_knowledge_item, reindex_active_knowledge,
 )
+from app.services.retrieval_feedback import (
+    create_retrieval_feedback, list_retrieval_feedback, update_retrieval_feedback,
+)
 from app.services.events import record_event
 from app.schemas import (
     KnowledgeItemCreate, KnowledgeItemOut, KnowledgeItemUpdate,
@@ -29,6 +32,8 @@ from app.schemas import (
     KnowledgeReviewItemOut,
     KnowledgeVectorReindexRequest, KnowledgeVectorReindexOut,
     KnowledgeVectorStatusOut,
+    KnowledgeRetrievalFeedbackCreate, KnowledgeRetrievalFeedbackOut,
+    KnowledgeRetrievalFeedbackUpdate,
 )
 from app.models import KnowledgeItem, KnowledgeSource
 
@@ -209,6 +214,88 @@ def create_source_api(req: KnowledgeSourceCreate, db: Session = Depends(get_db),
                  subject_type="knowledge_source", subject_id=src.id, title=f"知识来源已创建: {src.name}")
     db.commit()
     return KnowledgeSourceOut.model_validate(src).model_dump(mode="json")
+
+
+# ── Retrieval Feedback (P6.11, declared before /{knowledge_id}) ──
+
+@router.post("/retrieval-feedback", status_code=201)
+def create_retrieval_feedback_api(
+    req: KnowledgeRetrievalFeedbackCreate,
+    db: Session = Depends(get_db),
+    admin: str = Depends(get_admin_email),
+):
+    wid = get_current_workspace_id(db)
+    try:
+        feedback = create_retrieval_feedback(db, wid, req.model_dump(), actor=admin)
+        record_event(
+            db, workspace_id=wid, type="knowledge_retrieval_feedback.created",
+            source="knowledge_api", subject_type="knowledge_retrieval_feedback",
+            subject_id=feedback.id, actor=admin,
+            title=f"检索反馈已记录: {feedback.feedback_type}",
+            payload_json={
+                "feedback_type": feedback.feedback_type,
+                "source": feedback.source,
+                "knowledge_item_id": feedback.knowledge_item_id,
+                "expected_knowledge_item_id": feedback.expected_knowledge_item_id,
+            },
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
+    return KnowledgeRetrievalFeedbackOut.model_validate(feedback).model_dump(mode="json")
+
+
+@router.get("/retrieval-feedback")
+def list_retrieval_feedback_api(
+    status: str | None = Query(None),
+    feedback_type: str | None = Query(None),
+    knowledge_item_id: str | None = Query(None),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    _admin: str = Depends(get_admin_email),
+):
+    wid = get_current_workspace_id(db)
+    try:
+        items = list_retrieval_feedback(db, wid, {
+            "status": status,
+            "feedback_type": feedback_type,
+            "knowledge_item_id": knowledge_item_id,
+        })
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    total = len(items)
+    page = items[offset:offset + limit]
+    return {
+        "items": [KnowledgeRetrievalFeedbackOut.model_validate(it).model_dump(mode="json") for it in page],
+        "total": total,
+    }
+
+
+@router.patch("/retrieval-feedback/{feedback_id}")
+def update_retrieval_feedback_api(
+    feedback_id: str,
+    req: KnowledgeRetrievalFeedbackUpdate,
+    db: Session = Depends(get_db),
+    admin: str = Depends(get_admin_email),
+):
+    wid = get_current_workspace_id(db)
+    try:
+        feedback = update_retrieval_feedback(db, wid, feedback_id, req.model_dump(exclude_unset=True))
+        record_event(
+            db, workspace_id=wid, type="knowledge_retrieval_feedback.updated",
+            source="knowledge_api", subject_type="knowledge_retrieval_feedback",
+            subject_id=feedback.id, actor=admin,
+            title=f"检索反馈状态已更新: {feedback.status}",
+            payload_json={"status": feedback.status, "feedback_type": feedback.feedback_type},
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        status_code = 404 if "not found" in str(exc).lower() else 422
+        raise HTTPException(status_code=status_code, detail=str(exc))
+    return KnowledgeRetrievalFeedbackOut.model_validate(feedback).model_dump(mode="json")
 
 
 # ── Vector RAG (P6.6, declared before /{knowledge_id} to avoid path capture) ──

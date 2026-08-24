@@ -792,6 +792,13 @@ class KnowledgeVector(Base):
 RETRIEVAL_EVAL_CASE_STATUSES = ("active", "archived")
 RETRIEVAL_EVAL_RUN_STATUSES = ("running", "completed", "failed")
 RETRIEVAL_EVAL_RESULT_STATUSES = ("passed", "missed", "empty", "error")
+KNOWLEDGE_RETRIEVAL_FEEDBACK_TYPES = ("helpful", "irrelevant", "missing", "outdated", "needs_review")
+KNOWLEDGE_RETRIEVAL_FEEDBACK_STATUSES = ("open", "reviewed", "resolved", "archived")
+KNOWLEDGE_RETRIEVAL_FEEDBACK_SOURCES = (
+    "sales_reply_citation",
+    "retrieval_evaluation_result",
+    "manual_review",
+)
 
 
 class RetrievalEvalCase(Base):
@@ -860,3 +867,26 @@ class RetrievalEvalResult(Base):
 
     run: Mapped["RetrievalEvalRun"] = relationship(back_populates="results")
     case: Mapped["RetrievalEvalCase"] = relationship(back_populates="results")
+
+
+class KnowledgeRetrievalFeedback(Base):
+    __tablename__ = "knowledge_retrieval_feedback"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    workspace_id: Mapped[str] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True, nullable=False)
+    feedback_type: Mapped[str] = mapped_column(String(30), default="needs_review", nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(20), default="open", nullable=False, index=True)
+    source: Mapped[str] = mapped_column(String(60), default="manual_review", nullable=False, index=True)
+    query: Mapped[str | None] = mapped_column(Text)
+    note: Mapped[str | None] = mapped_column(Text)
+    knowledge_item_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("knowledge_items.id"), index=True)
+    expected_knowledge_item_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("knowledge_items.id"), index=True)
+    artifact_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("artifacts.id"), index=True)
+    retrieval_eval_result_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("retrieval_eval_results.id"), index=True)
+    opportunity_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("opportunities.id"), index=True)
+    citation_hit_json: Mapped[dict | None] = mapped_column(JSON)
+    metadata_json: Mapped[dict | None] = mapped_column(JSON)
+    created_by: Mapped[str | None] = mapped_column(String(255))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)

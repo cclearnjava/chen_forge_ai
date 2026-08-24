@@ -4,15 +4,20 @@ import { useCallback, useEffect, useState } from "react";
 import AdminShell from "@/components/admin/admin-shell";
 import {
 	  archiveKnowledgeItem, bulkUpdateKnowledgeReviewItems, createKnowledgeItem,
+	  createKnowledgeRetrievalFeedback,
 	  archiveRetrievalEvalCase, createRetrievalEvalCase,
+	  getKnowledgeRetrievalFeedback,
 	  getKnowledgeDocuments, getKnowledgeItems, getKnowledgeReviewItems,
 	  getKnowledgeVectorStatus, getNotificationSummary, getServices,
 	  getRetrievalEvalCases, getRetrievalEvalRun,
 	  reindexActiveKnowledge, reindexKnowledgeItem,
 	  runRetrievalEvaluation, updateKnowledgeItem, uploadKnowledgeDocument,
+	  updateKnowledgeRetrievalFeedback,
 	  KNOWLEDGE_SOURCE_TYPES, type KnowledgeDocumentOut, type KnowledgeItemInput,
-	  type KnowledgeItemOut, type KnowledgeReviewItemOut, type RetrievalEvalCaseOut,
-	  type RetrievalEvalRunDetailOut, type ServiceOut,
+	  type KnowledgeItemOut, type KnowledgeRetrievalFeedbackOut,
+	  type KnowledgeRetrievalFeedbackStatus, type KnowledgeReviewItemOut,
+	  type KnowledgeCitationHit, type RetrievalEvalCaseOut,
+	  type RetrievalEvalResultOut, type RetrievalEvalRunDetailOut, type ServiceOut,
 	} from "@/lib/admin-api";
 
 const SOURCE_TYPE_LABELS: Record<string, string> = {
@@ -22,6 +27,12 @@ const SOURCE_TYPE_LABELS: Record<string, string> = {
 };
 const STATUS_LABELS: Record<string, string> = { draft: "草稿", active: "有效", archived: "已归档" };
 const STATUS_FILTERS = ["active", "draft", "archived"];
+const FEEDBACK_TYPE_LABELS: Record<string, string> = {
+  helpful: "有用", irrelevant: "不相关", missing: "漏召回", outdated: "过时", needs_review: "需检查",
+};
+const FEEDBACK_STATUS_LABELS: Record<string, string> = {
+  open: "待处理", reviewed: "已查看", resolved: "已解决", archived: "已归档",
+};
 const PARSER_LABELS: Record<string, string> = {
   text_v1: "TXT", markdown_text_v1: "Markdown", pdf_text_v1: "PDF 文本", docx_text_v1: "Word 文档",
 };
@@ -95,6 +106,11 @@ export default function KnowledgePage() {
 	  const [expectedIds, setExpectedIds] = useState<Set<string>>(new Set());
 	  const [evalSaving, setEvalSaving] = useState(false);
 	  const [evalRunning, setEvalRunning] = useState(false);
+	  const [feedbackItems, setFeedbackItems] = useState<KnowledgeRetrievalFeedbackOut[]>([]);
+	  const [feedbackTotal, setFeedbackTotal] = useState(0);
+	  const [feedbackStatus, setFeedbackStatus] = useState("open");
+	  const [feedbackType, setFeedbackType] = useState("");
+	  const [feedbackSavingKey, setFeedbackSavingKey] = useState<string | null>(null);
 
   const loadDocuments = useCallback(() => {
     getKnowledgeDocuments().then((r) => setDocuments(r.items)).catch(() => {});
@@ -112,7 +128,15 @@ export default function KnowledgePage() {
 	    getRetrievalEvalCases("active").then((r) => setEvalCases(r.items)).catch(() => {});
 	  }, []);
 
+	  const loadFeedback = useCallback(() => {
+	    getKnowledgeRetrievalFeedback({
+	      status: feedbackStatus || undefined,
+	      feedback_type: feedbackType || undefined,
+	    }).then((r) => { setFeedbackItems(r.items); setFeedbackTotal(r.total); }).catch(() => {});
+	  }, [feedbackStatus, feedbackType]);
+
   useEffect(() => { loadReview(); }, [loadReview]);
+	  useEffect(() => { loadFeedback(); }, [loadFeedback]);
 
   // Proactively load vector status for active items in the current list
   useEffect(() => {
@@ -138,7 +162,8 @@ export default function KnowledgePage() {
 	    getServices({ status: "active" }).then((r) => setServices(r.items)).catch(() => {});
 	    loadDocuments();
 	    loadEvalCases();
-	  }, [loadDocuments, loadEvalCases]);
+	    loadFeedback();
+	  }, [loadDocuments, loadEvalCases, loadFeedback]);
 
   const handleUpload = async (file: File | undefined) => {
     if (!file) return;
@@ -282,6 +307,78 @@ export default function KnowledgePage() {
 	  const archiveEval = async (id: string) => {
 	    try { await archiveRetrievalEvalCase(id); loadEvalCases(); }
 	    catch (e: unknown) { setError(e instanceof Error ? e.message : "归档评估用例失败"); }
+	  };
+
+	  const hitSnapshot = (hit: KnowledgeCitationHit, rank: number) => ({
+	    knowledge_item_id: hit.knowledge_item_id,
+	    title: hit.title,
+	    score: hit.score,
+	    keyword_score: hit.keyword_score ?? null,
+	    vector_score: hit.vector_score ?? null,
+	    rerank_score: hit.rerank_score ?? null,
+	    retrieval_mode: hit.retrieval_mode ?? null,
+	    match_reasons: hit.match_reasons ?? [],
+	    excerpt: hit.excerpt,
+	    rank,
+	  });
+
+	  const recordEvalHitFeedback = async (
+	    result: RetrievalEvalResultOut,
+	    hit: KnowledgeCitationHit,
+	    rank: number,
+	    feedbackType: "helpful" | "irrelevant" | "outdated" | "needs_review",
+	  ) => {
+	    const key = `${result.id}:${hit.knowledge_item_id}:${feedbackType}`;
+	    setFeedbackSavingKey(key); setError(null);
+	    try {
+	      await createKnowledgeRetrievalFeedback({
+	        feedback_type: feedbackType,
+	        source: "retrieval_evaluation_result",
+	        query: result.query,
+	        knowledge_item_id: hit.knowledge_item_id,
+	        retrieval_eval_result_id: result.id,
+	        citation_hit_json: hitSnapshot(hit, rank),
+	        metadata_json: { rank },
+	      });
+	      loadFeedback();
+	    } catch (e: unknown) {
+	      setError(e instanceof Error ? e.message : "记录检索反馈失败");
+	    } finally {
+	      setFeedbackSavingKey(null);
+	    }
+	  };
+
+	  const recordMissingFeedback = async (result: RetrievalEvalResultOut, expectedId: string) => {
+	    const key = `${result.id}:${expectedId}:missing`;
+	    setFeedbackSavingKey(key); setError(null);
+	    try {
+	      await createKnowledgeRetrievalFeedback({
+	        feedback_type: "missing",
+	        source: "retrieval_evaluation_result",
+	        query: result.query,
+	        expected_knowledge_item_id: expectedId,
+	        retrieval_eval_result_id: result.id,
+	        note: `评估结果漏掉：${knowledgeTitle(expectedId)}`,
+	        metadata_json: { result_status: result.status },
+	      });
+	      loadFeedback();
+	    } catch (e: unknown) {
+	      setError(e instanceof Error ? e.message : "记录漏召回失败");
+	    } finally {
+	      setFeedbackSavingKey(null);
+	    }
+	  };
+
+	  const updateFeedbackStatus = async (id: string, nextStatus: KnowledgeRetrievalFeedbackStatus) => {
+	    setFeedbackSavingKey(`${id}:${nextStatus}`); setError(null);
+	    try {
+	      await updateKnowledgeRetrievalFeedback(id, { status: nextStatus });
+	      loadFeedback();
+	    } catch (e: unknown) {
+	      setError(e instanceof Error ? e.message : "更新反馈状态失败");
+	    } finally {
+	      setFeedbackSavingKey(null);
+	    }
 	  };
 
 	  const serviceName = (id: string | null) => services.find((s) => s.id === id)?.name;
@@ -469,18 +566,28 @@ export default function KnowledgePage() {
 	                  <span>Precision {pct(r.precision_at_k)}</span>
 	                  <span>命中 {r.hit_count}</span>
 	                  {r.matched_expected_ids.map((id) => <span key={id}>命中：{knowledgeTitle(id)}</span>)}
-	                  {r.missed_expected_ids.map((id) => <span key={id} className="document-error">漏掉：{knowledgeTitle(id)}</span>)}
+	                  {r.missed_expected_ids.map((id) => (
+	                    <span key={id} className="document-error">
+	                      漏掉：{knowledgeTitle(id)}
+	                      <button className="button ghost tiny" disabled={feedbackSavingKey === `${r.id}:${id}:missing`} onClick={() => recordMissingFeedback(r, id)}>
+	                        记录漏召回
+	                      </button>
+	                    </span>
+	                  ))}
 	                  {r.error_message && <span className="document-error">{r.error_message}</span>}
 	                  {r.citation_pack_json?.reranker_error && <span className="document-error">Reranker：{r.citation_pack_json.reranker_error}</span>}
 	                </span>
 	                {r.citation_pack_json?.hits && r.citation_pack_json.hits.length > 0 && (
 	                  <span className="document-meta">
 	                    {r.citation_pack_json.hits.slice(0, 5).map((h, idx) => (
-	                      <span key={`${r.id}-${h.knowledge_item_id}`}>
+	                      <span key={`${r.id}-${h.knowledge_item_id}`} className="eval-hit-feedback">
 	                        #{idx + 1} {h.title || knowledgeTitle(h.knowledge_item_id)}
 	                        {h.score != null ? ` · score ${h.score}` : ""}
 	                        {h.reranked && h.rerank_score != null ? ` · rerank ${h.rerank_score}` : ""}
 	                        {h.retrieval_mode ? ` · ${h.retrieval_mode}` : ""}
+	                        <button className="button ghost tiny" disabled={feedbackSavingKey === `${r.id}:${h.knowledge_item_id}:helpful`} onClick={() => recordEvalHitFeedback(r, h, idx + 1, "helpful")}>有用</button>
+	                        <button className="button ghost tiny" disabled={feedbackSavingKey === `${r.id}:${h.knowledge_item_id}:irrelevant`} onClick={() => recordEvalHitFeedback(r, h, idx + 1, "irrelevant")}>不相关</button>
+	                        <button className="button ghost tiny" disabled={feedbackSavingKey === `${r.id}:${h.knowledge_item_id}:needs_review`} onClick={() => recordEvalHitFeedback(r, h, idx + 1, "needs_review")}>需检查</button>
 	                      </span>
 	                    ))}
 	                  </span>
@@ -489,6 +596,49 @@ export default function KnowledgePage() {
 	            ))}
 	          </div>
 	        )}
+	      </section>
+
+	      <section className="knowledge-review">
+	        <div className="panel-heading"><h2>检索反馈{feedbackTotal > 0 && ` · ${feedbackTotal} 条`}</h2></div>
+	        <div className="review-toolbar">
+	          <div className="stage-filter">
+	            <select value={feedbackStatus} onChange={(e) => setFeedbackStatus(e.target.value)}>
+	              <option value="">全部状态</option>
+	              {Object.entries(FEEDBACK_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+	            </select>
+	          </div>
+	          <div className="stage-filter">
+	            <select value={feedbackType} onChange={(e) => setFeedbackType(e.target.value)}>
+	              <option value="">全部类型</option>
+	              {Object.entries(FEEDBACK_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+	            </select>
+	          </div>
+	          <button className="button ghost small" onClick={loadFeedback}>刷新</button>
+	        </div>
+	        <div className="document-list">
+	          {feedbackItems.length === 0 ? (
+	            <p className="subresource-empty">暂无检索反馈</p>
+	          ) : feedbackItems.map((fb) => (
+	            <div key={fb.id} className="document-row">
+	              <strong>{FEEDBACK_TYPE_LABELS[fb.feedback_type] || fb.feedback_type} · {fb.query || "未记录 query"}</strong>
+	              <span className="document-meta">
+	                <span>{FEEDBACK_STATUS_LABELS[fb.status] || fb.status}</span>
+	                <span>{fb.source}</span>
+	                {fb.knowledge_item_id && <span>命中项：{knowledgeTitle(fb.knowledge_item_id)}</span>}
+	                {fb.expected_knowledge_item_id && <span>期望项：{knowledgeTitle(fb.expected_knowledge_item_id)}</span>}
+	                {fb.note && <span>{fb.note}</span>}
+	                <span>{new Date(fb.created_at).toLocaleString()}</span>
+	              </span>
+	              {fb.status !== "reviewed" && fb.status !== "resolved" && fb.status !== "archived" && (
+	                <span className="document-meta">
+	                  <button className="button ghost small" disabled={feedbackSavingKey === `${fb.id}:reviewed`} onClick={() => updateFeedbackStatus(fb.id, "reviewed")}>标记已查看</button>
+	                  <button className="button ghost small" disabled={feedbackSavingKey === `${fb.id}:resolved`} onClick={() => updateFeedbackStatus(fb.id, "resolved")}>标记已解决</button>
+	                  <button className="button ghost small" disabled={feedbackSavingKey === `${fb.id}:archived`} onClick={() => updateFeedbackStatus(fb.id, "archived")}>归档</button>
+	                </span>
+	              )}
+	            </div>
+	          ))}
+	        </div>
 	      </section>
 
 	      {editorOpen && (
