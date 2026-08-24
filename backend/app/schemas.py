@@ -887,6 +887,17 @@ class RetrievalEvalCaseOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class RetrievalEvalCasePromotionRequest(BaseModel):
+    feedback_ids: list[str] = Field(default_factory=list, max_length=50)
+    suggestion_id: str | None = None
+
+
+class RetrievalEvalCasePromotionOut(BaseModel):
+    created_count: int = 0
+    skipped_count: int = 0
+    cases: list[RetrievalEvalCaseOut] = Field(default_factory=list)
+
+
 class RetrievalEvalRunCreate(BaseModel):
     case_ids: list[str] | None = Field(default=None, max_length=100)
     k: int = Field(default=5, ge=1, le=20)

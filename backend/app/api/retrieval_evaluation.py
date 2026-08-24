@@ -6,12 +6,16 @@ from app.db import get_db
 from app.schemas import (
     RetrievalEvalCaseCreate,
     RetrievalEvalCaseOut,
+    RetrievalEvalCasePromotionOut,
+    RetrievalEvalCasePromotionRequest,
     RetrievalEvalCaseUpdate,
     RetrievalEvalResultOut,
     RetrievalEvalRunCreate,
     RetrievalEvalRunDetailOut,
     RetrievalEvalRunOut,
 )
+from app.services.eval_case_promotion import promote_eval_cases
+from app.services.events import record_event
 from app.services.retrieval_evaluation import (
     archive_eval_case,
     create_eval_case,
@@ -54,6 +58,38 @@ def create_case_api(
         db.rollback()
         raise HTTPException(status_code=422, detail=str(exc))
     return RetrievalEvalCaseOut.model_validate(case).model_dump(mode="json")
+
+
+@router.post("/cases/promote", status_code=201)
+def promote_cases_api(
+    req: RetrievalEvalCasePromotionRequest,
+    db: Session = Depends(get_db),
+    admin: str = Depends(get_admin_email),
+):
+    wid = get_current_workspace_id(db)
+    try:
+        result = promote_eval_cases(db, wid, req.model_dump(), actor=admin)
+        for case in result["cases"]:
+            record_event(
+                db, workspace_id=wid, type="retrieval_eval_case.promoted",
+                source="retrieval_evaluation_api", subject_type="retrieval_eval_case",
+                subject_id=case.id, actor=admin,
+                title=f"检索评估用例已沉淀: {case.query[:80]}",
+                payload_json={
+                    "case_id": case.id,
+                    "expected_knowledge_item_ids": case.expected_knowledge_item_ids,
+                },
+            )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        status = 404 if "not found" in str(exc).lower() else 422
+        raise HTTPException(status_code=status, detail=str(exc))
+    return RetrievalEvalCasePromotionOut(
+        created_count=result["created_count"],
+        skipped_count=result["skipped_count"],
+        cases=[RetrievalEvalCaseOut.model_validate(c) for c in result["cases"]],
+    ).model_dump(mode="json")
 
 
 @router.patch("/cases/{case_id}")

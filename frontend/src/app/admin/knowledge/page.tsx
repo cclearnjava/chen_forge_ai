@@ -12,6 +12,7 @@ import {
 	  getKnowledgeDocuments, getKnowledgeItems, getKnowledgeReviewItems,
 	  getKnowledgeVectorStatus, getNotificationSummary, getServices,
 	  getRetrievalEvalCases, getRetrievalEvalRun,
+	  promoteRetrievalEvalCases,
 	  reindexActiveKnowledge, reindexKnowledgeItem,
 	  runRetrievalEvaluation, updateKnowledgeItem, uploadKnowledgeDocument,
 	  updateKnowledgeImprovementSuggestion,
@@ -121,6 +122,7 @@ export default function KnowledgePage() {
 	  const [expectedIds, setExpectedIds] = useState<Set<string>>(new Set());
 	  const [evalSaving, setEvalSaving] = useState(false);
 	  const [evalRunning, setEvalRunning] = useState(false);
+	  const [evalPromotingKey, setEvalPromotingKey] = useState<string | null>(null);
 	  const [feedbackItems, setFeedbackItems] = useState<KnowledgeRetrievalFeedbackOut[]>([]);
 	  const [feedbackTotal, setFeedbackTotal] = useState(0);
 	  const [feedbackStatus, setFeedbackStatus] = useState("open");
@@ -337,6 +339,20 @@ export default function KnowledgePage() {
 	  const archiveEval = async (id: string) => {
 	    try { await archiveRetrievalEvalCase(id); loadEvalCases(); }
 	    catch (e: unknown) { setError(e instanceof Error ? e.message : "归档评估用例失败"); }
+	  };
+
+	  const promoteEvalCases = async (data: { feedback_ids?: string[]; suggestion_id?: string }, key: string) => {
+	    setEvalPromotingKey(key); setSuggestionMsg(null); setError(null);
+	    try {
+	      const res = await promoteRetrievalEvalCases(data);
+	      setSuggestionMsg(`已沉淀 ${res.created_count} 条评估用例，跳过 ${res.skipped_count} 条重复用例`);
+	      loadEvalCases();
+	      loadSuggestions();
+	    } catch (e: unknown) {
+	      setError(e instanceof Error ? e.message : "沉淀评估用例失败");
+	    } finally {
+	      setEvalPromotingKey(null);
+	    }
 	  };
 
 	  const hitSnapshot = (hit: KnowledgeCitationHit, rank: number) => ({
@@ -701,6 +717,11 @@ export default function KnowledgePage() {
 	                <span className="document-meta">
 	                  {s.status === "open" && <button className="button ghost small" disabled={suggestionSavingKey === `${s.id}:accepted`} onClick={() => updateSuggestionStatus(s.id, "accepted")}>接受</button>}
 	                  {s.status === "open" && <button className="button ghost small" disabled={suggestionSavingKey === `${s.id}:dismissed`} onClick={() => updateSuggestionStatus(s.id, "dismissed")}>忽略</button>}
+	                  {s.suggestion_type === "promote_eval_case" && (
+	                    <button className="button ghost small" disabled={evalPromotingKey === `suggestion:${s.id}`} onClick={() => promoteEvalCases({ suggestion_id: s.id }, `suggestion:${s.id}`)}>
+	                      {evalPromotingKey === `suggestion:${s.id}` ? "沉淀中..." : "沉淀为评估用例"}
+	                    </button>
+	                  )}
 	                  <button className="button ghost small" disabled={suggestionSavingKey === `${s.id}:applied`} onClick={() => updateSuggestionStatus(s.id, "applied")}>标记已处理</button>
 	                  <button className="button ghost small" disabled={suggestionSavingKey === `${s.id}:archived`} onClick={() => updateSuggestionStatus(s.id, "archived")}>归档</button>
 	                </span>
@@ -743,6 +764,11 @@ export default function KnowledgePage() {
 	              </span>
 	              {fb.status !== "reviewed" && fb.status !== "resolved" && fb.status !== "archived" && (
 	                <span className="document-meta">
+	                  {(fb.feedback_type === "helpful" || (fb.feedback_type === "missing" && !!fb.expected_knowledge_item_id)) && (
+	                    <button className="button ghost small" disabled={evalPromotingKey === `feedback:${fb.id}`} onClick={() => promoteEvalCases({ feedback_ids: [fb.id] }, `feedback:${fb.id}`)}>
+	                      {evalPromotingKey === `feedback:${fb.id}` ? "沉淀中..." : "沉淀为评估用例"}
+	                    </button>
+	                  )}
 	                  <button className="button ghost small" disabled={feedbackSavingKey === `${fb.id}:reviewed`} onClick={() => updateFeedbackStatus(fb.id, "reviewed")}>标记已查看</button>
 	                  <button className="button ghost small" disabled={feedbackSavingKey === `${fb.id}:resolved`} onClick={() => updateFeedbackStatus(fb.id, "resolved")}>标记已解决</button>
 	                  <button className="button ghost small" disabled={feedbackSavingKey === `${fb.id}:archived`} onClick={() => updateFeedbackStatus(fb.id, "archived")}>归档</button>

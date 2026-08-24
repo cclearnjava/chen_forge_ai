@@ -1003,6 +1003,13 @@ export async function createRetrievalEvalCase(data: {
   return api("/admin/knowledge/evaluations/cases", { method: "POST", body: JSON.stringify(data) });
 }
 
+export async function promoteRetrievalEvalCases(data: {
+  feedback_ids?: string[];
+  suggestion_id?: string;
+}): Promise<{ created_count: number; skipped_count: number; cases: RetrievalEvalCaseOut[] }> {
+  return api("/admin/knowledge/evaluations/cases/promote", { method: "POST", body: JSON.stringify(data) });
+}
+
 export async function archiveRetrievalEvalCase(id: string): Promise<RetrievalEvalCaseOut> {
   return api(`/admin/knowledge/evaluations/cases/${id}`, { method: "DELETE" });
 }
