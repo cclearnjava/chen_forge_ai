@@ -38,9 +38,6 @@ def _validate_links(db: Session, workspace_id: str, data: dict) -> None:
 
     if feedback_type != "missing" and not knowledge_item_id:
         raise ValueError("knowledge_item_id is required for non-missing feedback")
-    if feedback_type == "missing" and not expected_item_id:
-        raise ValueError("expected_knowledge_item_id is required for missing feedback")
-
     if knowledge_item_id:
         _require_workspace(db, KnowledgeItem, workspace_id, knowledge_item_id, "knowledge_item_id")
     if expected_item_id:

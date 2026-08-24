@@ -5,15 +5,19 @@ import AdminShell from "@/components/admin/admin-shell";
 import {
 	  archiveKnowledgeItem, bulkUpdateKnowledgeReviewItems, createKnowledgeItem,
 	  createKnowledgeRetrievalFeedback,
+	  generateKnowledgeImprovementSuggestions,
 	  archiveRetrievalEvalCase, createRetrievalEvalCase,
+	  getKnowledgeImprovementSuggestions,
 	  getKnowledgeRetrievalFeedback,
 	  getKnowledgeDocuments, getKnowledgeItems, getKnowledgeReviewItems,
 	  getKnowledgeVectorStatus, getNotificationSummary, getServices,
 	  getRetrievalEvalCases, getRetrievalEvalRun,
 	  reindexActiveKnowledge, reindexKnowledgeItem,
 	  runRetrievalEvaluation, updateKnowledgeItem, uploadKnowledgeDocument,
+	  updateKnowledgeImprovementSuggestion,
 	  updateKnowledgeRetrievalFeedback,
 	  KNOWLEDGE_SOURCE_TYPES, type KnowledgeDocumentOut, type KnowledgeItemInput,
+	  type KnowledgeImprovementSuggestionOut, type KnowledgeImprovementSuggestionStatus,
 	  type KnowledgeItemOut, type KnowledgeRetrievalFeedbackOut,
 	  type KnowledgeRetrievalFeedbackStatus, type KnowledgeReviewItemOut,
 	  type KnowledgeCitationHit, type RetrievalEvalCaseOut,
@@ -32,6 +36,17 @@ const FEEDBACK_TYPE_LABELS: Record<string, string> = {
 };
 const FEEDBACK_STATUS_LABELS: Record<string, string> = {
   open: "待处理", reviewed: "已查看", resolved: "已解决", archived: "已归档",
+};
+const SUGGESTION_TYPE_LABELS: Record<string, string> = {
+  update_content: "更新正文",
+  improve_metadata: "优化元数据",
+  improve_retrievability: "增强可检索性",
+  split_knowledge: "拆分知识",
+  create_knowledge: "新增知识",
+  promote_eval_case: "沉淀评估用例",
+};
+const SUGGESTION_STATUS_LABELS: Record<string, string> = {
+  open: "待处理", accepted: "已接受", dismissed: "已忽略", applied: "已处理", archived: "已归档",
 };
 const PARSER_LABELS: Record<string, string> = {
   text_v1: "TXT", markdown_text_v1: "Markdown", pdf_text_v1: "PDF 文本", docx_text_v1: "Word 文档",
@@ -111,6 +126,12 @@ export default function KnowledgePage() {
 	  const [feedbackStatus, setFeedbackStatus] = useState("open");
 	  const [feedbackType, setFeedbackType] = useState("");
 	  const [feedbackSavingKey, setFeedbackSavingKey] = useState<string | null>(null);
+	  const [suggestions, setSuggestions] = useState<KnowledgeImprovementSuggestionOut[]>([]);
+	  const [suggestionTotal, setSuggestionTotal] = useState(0);
+	  const [suggestionStatus, setSuggestionStatus] = useState("open");
+	  const [suggestionType, setSuggestionType] = useState("");
+	  const [suggestionMsg, setSuggestionMsg] = useState<string | null>(null);
+	  const [suggestionSavingKey, setSuggestionSavingKey] = useState<string | null>(null);
 
   const loadDocuments = useCallback(() => {
     getKnowledgeDocuments().then((r) => setDocuments(r.items)).catch(() => {});
@@ -135,8 +156,16 @@ export default function KnowledgePage() {
 	    }).then((r) => { setFeedbackItems(r.items); setFeedbackTotal(r.total); }).catch(() => {});
 	  }, [feedbackStatus, feedbackType]);
 
+	  const loadSuggestions = useCallback(() => {
+	    getKnowledgeImprovementSuggestions({
+	      status: suggestionStatus || undefined,
+	      suggestion_type: suggestionType || undefined,
+	    }).then((r) => { setSuggestions(r.items); setSuggestionTotal(r.total); }).catch(() => {});
+	  }, [suggestionStatus, suggestionType]);
+
   useEffect(() => { loadReview(); }, [loadReview]);
 	  useEffect(() => { loadFeedback(); }, [loadFeedback]);
+	  useEffect(() => { loadSuggestions(); }, [loadSuggestions]);
 
   // Proactively load vector status for active items in the current list
   useEffect(() => {
@@ -163,7 +192,8 @@ export default function KnowledgePage() {
 	    loadDocuments();
 	    loadEvalCases();
 	    loadFeedback();
-	  }, [loadDocuments, loadEvalCases, loadFeedback]);
+	    loadSuggestions();
+	  }, [loadDocuments, loadEvalCases, loadFeedback, loadSuggestions]);
 
   const handleUpload = async (file: File | undefined) => {
     if (!file) return;
@@ -378,6 +408,31 @@ export default function KnowledgePage() {
 	      setError(e instanceof Error ? e.message : "更新反馈状态失败");
 	    } finally {
 	      setFeedbackSavingKey(null);
+	    }
+	  };
+
+	  const generateSuggestions = async () => {
+	    setSuggestionSavingKey("generate"); setSuggestionMsg(null); setError(null);
+	    try {
+	      const res = await generateKnowledgeImprovementSuggestions({ limit: 200 });
+	      setSuggestionMsg(`已生成 ${res.created_count} 条，更新 ${res.updated_count} 条建议`);
+	      loadSuggestions();
+	    } catch (e: unknown) {
+	      setError(e instanceof Error ? e.message : "生成知识改进建议失败");
+	    } finally {
+	      setSuggestionSavingKey(null);
+	    }
+	  };
+
+	  const updateSuggestionStatus = async (id: string, nextStatus: KnowledgeImprovementSuggestionStatus) => {
+	    setSuggestionSavingKey(`${id}:${nextStatus}`); setError(null);
+	    try {
+	      await updateKnowledgeImprovementSuggestion(id, { status: nextStatus });
+	      loadSuggestions();
+	    } catch (e: unknown) {
+	      setError(e instanceof Error ? e.message : "更新知识改进建议失败");
+	    } finally {
+	      setSuggestionSavingKey(null);
 	    }
 	  };
 
@@ -596,6 +651,63 @@ export default function KnowledgePage() {
 	            ))}
 	          </div>
 	        )}
+	      </section>
+
+	      <section className="knowledge-review">
+	        <div className="panel-heading"><h2>知识改进建议{suggestionTotal > 0 && ` · ${suggestionTotal} 条`}</h2></div>
+	        <div className="review-toolbar">
+	          <div className="stage-filter">
+	            <select value={suggestionStatus} onChange={(e) => setSuggestionStatus(e.target.value)}>
+	              <option value="">全部状态</option>
+	              {Object.entries(SUGGESTION_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+	            </select>
+	          </div>
+	          <div className="stage-filter">
+	            <select value={suggestionType} onChange={(e) => setSuggestionType(e.target.value)}>
+	              <option value="">全部类型</option>
+	              {Object.entries(SUGGESTION_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+	            </select>
+	          </div>
+	          <button className="button primary small" onClick={generateSuggestions} disabled={suggestionSavingKey === "generate"}>
+	            {suggestionSavingKey === "generate" ? "生成中..." : "生成建议"}
+	          </button>
+	          <button className="button ghost small" onClick={loadSuggestions}>刷新</button>
+	          {suggestionMsg && <span className="review-count">{suggestionMsg}</span>}
+	        </div>
+	        <div className="document-list">
+	          {suggestions.length === 0 ? (
+	            <p className="subresource-empty">暂无知识改进建议。可以先从检索评估或 Sales Reply 引用中记录反馈，再生成建议。</p>
+	          ) : suggestions.map((s) => (
+	            <div key={s.id} className="document-row">
+	              <strong>{SUGGESTION_TYPE_LABELS[s.suggestion_type] || s.suggestion_type} · {s.title}</strong>
+	              <span className="document-meta">
+	                <span>{SUGGESTION_STATUS_LABELS[s.status] || s.status}</span>
+	                {s.knowledge_item_id && <span>知识：{knowledgeTitle(s.knowledge_item_id)}</span>}
+	                {s.confidence != null && <span>confidence {Math.round(s.confidence * 100)}%</span>}
+	                <span>证据 {s.evidence_json?.feedback_count ?? s.source_feedback_ids.length} 条</span>
+	                <span>{s.generator_version}</span>
+	                <span>{new Date(s.created_at).toLocaleString()}</span>
+	              </span>
+	              <span className="document-meta suggestion-body">
+	                <span>{s.reason}</span>
+	                <span>{s.recommended_action}</span>
+	              </span>
+	              {s.evidence_json?.sample_queries && s.evidence_json.sample_queries.length > 0 && (
+	                <span className="document-meta">
+	                  {s.evidence_json.sample_queries.slice(0, 3).map((q) => <span key={q}>query：{q}</span>)}
+	                </span>
+	              )}
+	              {s.status !== "dismissed" && s.status !== "applied" && s.status !== "archived" && (
+	                <span className="document-meta">
+	                  {s.status === "open" && <button className="button ghost small" disabled={suggestionSavingKey === `${s.id}:accepted`} onClick={() => updateSuggestionStatus(s.id, "accepted")}>接受</button>}
+	                  {s.status === "open" && <button className="button ghost small" disabled={suggestionSavingKey === `${s.id}:dismissed`} onClick={() => updateSuggestionStatus(s.id, "dismissed")}>忽略</button>}
+	                  <button className="button ghost small" disabled={suggestionSavingKey === `${s.id}:applied`} onClick={() => updateSuggestionStatus(s.id, "applied")}>标记已处理</button>
+	                  <button className="button ghost small" disabled={suggestionSavingKey === `${s.id}:archived`} onClick={() => updateSuggestionStatus(s.id, "archived")}>归档</button>
+	                </span>
+	              )}
+	            </div>
+	          ))}
+	        </div>
 	      </section>
 
 	      <section className="knowledge-review">

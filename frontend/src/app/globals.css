@@ -1484,6 +1484,18 @@ h3 {
 
 .document-error { color: var(--copper-dark); }
 
+.suggestion-body {
+  align-items: flex-start;
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.suggestion-body span {
+  max-width: 100%;
+  word-break: break-word;
+}
+
 /* ── Knowledge Review Queue ── */
 
 .knowledge-review {

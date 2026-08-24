@@ -1016,6 +1016,74 @@ class KnowledgeRetrievalFeedbackOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# ── Knowledge Improvement Suggestions (P6.12) ──
+
+KNOWLEDGE_IMPROVEMENT_SUGGESTION_TYPES = (
+    "update_content",
+    "improve_metadata",
+    "improve_retrievability",
+    "split_knowledge",
+    "create_knowledge",
+    "promote_eval_case",
+)
+KNOWLEDGE_IMPROVEMENT_SUGGESTION_STATUSES = ("open", "accepted", "dismissed", "applied", "archived")
+
+
+class KnowledgeImprovementSuggestionGenerateRequest(BaseModel):
+    feedback_type: str | None = Field(default=None, max_length=30)
+    knowledge_item_id: str | None = None
+    limit: int = Field(default=200, ge=1, le=500)
+
+    @field_validator("feedback_type")
+    @classmethod
+    def validate_feedback_type(cls, value: str | None) -> str | None:
+        if value is not None and value not in KNOWLEDGE_RETRIEVAL_FEEDBACK_TYPES:
+            raise ValueError(f"Invalid feedback_type: {value}")
+        return value
+
+
+class KnowledgeImprovementSuggestionUpdate(BaseModel):
+    status: str | None = Field(default=None, max_length=20)
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str | None) -> str | None:
+        if value is not None and value not in KNOWLEDGE_IMPROVEMENT_SUGGESTION_STATUSES:
+            raise ValueError(f"Invalid status: {value}")
+        return value
+
+
+class KnowledgeImprovementSuggestionOut(BaseModel):
+    id: str
+    workspace_id: str
+    suggestion_type: str
+    status: str
+    title: str
+    reason: str
+    recommended_action: str
+    knowledge_item_id: str | None = None
+    expected_knowledge_item_id: str | None = None
+    source_feedback_ids: list[str] = Field(default_factory=list)
+    evidence_json: dict | None = None
+    metadata_json: dict | None = None
+    generator: str
+    generator_version: str
+    confidence: float | None = None
+    accepted_at: datetime | None = None
+    dismissed_at: datetime | None = None
+    applied_at: datetime | None = None
+    archived_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+    model_config = {"from_attributes": True}
+
+
+class KnowledgeImprovementSuggestionGenerateOut(BaseModel):
+    created_count: int = 0
+    updated_count: int = 0
+    suggestions: list[KnowledgeImprovementSuggestionOut] = Field(default_factory=list)
+
+
 # ── External Connector (P5) ──
 
 _CONNECTOR_PROVIDERS = ("mock", "email", "feishu", "wechat_work")

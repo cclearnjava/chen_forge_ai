@@ -762,6 +762,76 @@ export async function updateKnowledgeRetrievalFeedback(
   return api(`/admin/knowledge/retrieval-feedback/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 }
 
+export type KnowledgeImprovementSuggestionType =
+  | "update_content"
+  | "improve_metadata"
+  | "improve_retrievability"
+  | "split_knowledge"
+  | "create_knowledge"
+  | "promote_eval_case";
+export type KnowledgeImprovementSuggestionStatus = "open" | "accepted" | "dismissed" | "applied" | "archived";
+
+export type KnowledgeImprovementSuggestionOut = {
+  id: string;
+  workspace_id: string;
+  suggestion_type: KnowledgeImprovementSuggestionType;
+  status: KnowledgeImprovementSuggestionStatus;
+  title: string;
+  reason: string;
+  recommended_action: string;
+  knowledge_item_id?: string | null;
+  expected_knowledge_item_id?: string | null;
+  source_feedback_ids: string[];
+  evidence_json?: {
+    feedback_count?: number;
+    feedback_types?: Record<string, number>;
+    sample_queries?: string[];
+    sample_notes?: string[];
+    feedback_ids?: string[];
+  } | null;
+  metadata_json?: Record<string, unknown> | null;
+  generator: string;
+  generator_version: string;
+  confidence?: number | null;
+  accepted_at?: string | null;
+  dismissed_at?: string | null;
+  applied_at?: string | null;
+  archived_at?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function generateKnowledgeImprovementSuggestions(data?: {
+  feedback_type?: string;
+  knowledge_item_id?: string;
+  limit?: number;
+}): Promise<{ created_count: number; updated_count: number; suggestions: KnowledgeImprovementSuggestionOut[] }> {
+  return api("/admin/knowledge/improvement-suggestions/generate", {
+    method: "POST",
+    body: JSON.stringify(data || {}),
+  });
+}
+
+export async function getKnowledgeImprovementSuggestions(params?: {
+  status?: string;
+  suggestion_type?: string;
+  knowledge_item_id?: string;
+}): Promise<{ items: KnowledgeImprovementSuggestionOut[]; total: number }> {
+  const sp = new URLSearchParams();
+  if (params?.status) sp.set("status", params.status);
+  if (params?.suggestion_type) sp.set("suggestion_type", params.suggestion_type);
+  if (params?.knowledge_item_id) sp.set("knowledge_item_id", params.knowledge_item_id);
+  const qs = sp.toString();
+  return api(`/admin/knowledge/improvement-suggestions${qs ? `?${qs}` : ""}`);
+}
+
+export async function updateKnowledgeImprovementSuggestion(
+  id: string,
+  data: { status?: KnowledgeImprovementSuggestionStatus },
+): Promise<KnowledgeImprovementSuggestionOut> {
+  return api(`/admin/knowledge/improvement-suggestions/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+}
+
 /* ── Knowledge Review / Activation (P6.4) ── */
 
 export type KnowledgeQualityFlag =

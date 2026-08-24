@@ -23,6 +23,10 @@ from app.services.knowledge_vectors import (
 from app.services.retrieval_feedback import (
     create_retrieval_feedback, list_retrieval_feedback, update_retrieval_feedback,
 )
+from app.services.knowledge_improvement_suggestions import (
+    generate_improvement_suggestions, list_improvement_suggestions,
+    update_improvement_suggestion,
+)
 from app.services.events import record_event
 from app.schemas import (
     KnowledgeItemCreate, KnowledgeItemOut, KnowledgeItemUpdate,
@@ -34,6 +38,10 @@ from app.schemas import (
     KnowledgeVectorStatusOut,
     KnowledgeRetrievalFeedbackCreate, KnowledgeRetrievalFeedbackOut,
     KnowledgeRetrievalFeedbackUpdate,
+    KnowledgeImprovementSuggestionGenerateOut,
+    KnowledgeImprovementSuggestionGenerateRequest,
+    KnowledgeImprovementSuggestionOut,
+    KnowledgeImprovementSuggestionUpdate,
 )
 from app.models import KnowledgeItem, KnowledgeSource
 
@@ -296,6 +304,92 @@ def update_retrieval_feedback_api(
         status_code = 404 if "not found" in str(exc).lower() else 422
         raise HTTPException(status_code=status_code, detail=str(exc))
     return KnowledgeRetrievalFeedbackOut.model_validate(feedback).model_dump(mode="json")
+
+
+# ── Knowledge Improvement Suggestions (P6.12, declared before /{knowledge_id}) ──
+
+@router.post("/improvement-suggestions/generate", status_code=201)
+def generate_improvement_suggestions_api(
+    req: KnowledgeImprovementSuggestionGenerateRequest = KnowledgeImprovementSuggestionGenerateRequest(),
+    db: Session = Depends(get_db),
+    admin: str = Depends(get_admin_email),
+):
+    wid = get_current_workspace_id(db)
+    try:
+        result = generate_improvement_suggestions(db, wid, req.model_dump(exclude_none=True))
+        for suggestion in result["suggestions"]:
+            record_event(
+                db, workspace_id=wid, type="knowledge_improvement_suggestion.generated",
+                source="knowledge_api", subject_type="knowledge_improvement_suggestion",
+                subject_id=suggestion.id, actor=admin,
+                title=f"知识改进建议: {suggestion.title}",
+                payload_json={
+                    "suggestion_type": suggestion.suggestion_type,
+                    "status": suggestion.status,
+                    "knowledge_item_id": suggestion.knowledge_item_id,
+                },
+            )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
+    return KnowledgeImprovementSuggestionGenerateOut(
+        created_count=result["created_count"],
+        updated_count=result["updated_count"],
+        suggestions=[KnowledgeImprovementSuggestionOut.model_validate(s) for s in result["suggestions"]],
+    ).model_dump(mode="json")
+
+
+@router.get("/improvement-suggestions")
+def list_improvement_suggestions_api(
+    status: str | None = Query(None),
+    suggestion_type: str | None = Query(None),
+    knowledge_item_id: str | None = Query(None),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    _admin: str = Depends(get_admin_email),
+):
+    wid = get_current_workspace_id(db)
+    try:
+        items = list_improvement_suggestions(db, wid, {
+            "status": status,
+            "suggestion_type": suggestion_type,
+            "knowledge_item_id": knowledge_item_id,
+        })
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    total = len(items)
+    page = items[offset:offset + limit]
+    return {
+        "items": [KnowledgeImprovementSuggestionOut.model_validate(it).model_dump(mode="json") for it in page],
+        "total": total,
+    }
+
+
+@router.patch("/improvement-suggestions/{suggestion_id}")
+def update_improvement_suggestion_api(
+    suggestion_id: str,
+    req: KnowledgeImprovementSuggestionUpdate,
+    db: Session = Depends(get_db),
+    admin: str = Depends(get_admin_email),
+):
+    wid = get_current_workspace_id(db)
+    try:
+        suggestion = update_improvement_suggestion(db, wid, suggestion_id, req.model_dump(exclude_unset=True))
+        record_event(
+            db, workspace_id=wid, type="knowledge_improvement_suggestion.updated",
+            source="knowledge_api", subject_type="knowledge_improvement_suggestion",
+            subject_id=suggestion.id, actor=admin,
+            title=f"知识改进建议状态已更新: {suggestion.status}",
+            payload_json={"status": suggestion.status, "suggestion_type": suggestion.suggestion_type},
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        status_code = 404 if "not found" in str(exc).lower() else 422
+        raise HTTPException(status_code=status_code, detail=str(exc))
+    return KnowledgeImprovementSuggestionOut.model_validate(suggestion).model_dump(mode="json")
 
 
 # ── Vector RAG (P6.6, declared before /{knowledge_id} to avoid path capture) ──

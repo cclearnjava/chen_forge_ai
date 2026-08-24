@@ -799,6 +799,15 @@ KNOWLEDGE_RETRIEVAL_FEEDBACK_SOURCES = (
     "retrieval_evaluation_result",
     "manual_review",
 )
+KNOWLEDGE_IMPROVEMENT_SUGGESTION_TYPES = (
+    "update_content",
+    "improve_metadata",
+    "improve_retrievability",
+    "split_knowledge",
+    "create_knowledge",
+    "promote_eval_case",
+)
+KNOWLEDGE_IMPROVEMENT_SUGGESTION_STATUSES = ("open", "accepted", "dismissed", "applied", "archived")
 
 
 class RetrievalEvalCase(Base):
@@ -888,5 +897,30 @@ class KnowledgeRetrievalFeedback(Base):
     created_by: Mapped[str | None] = mapped_column(String(255))
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+
+
+class KnowledgeImprovementSuggestion(Base):
+    __tablename__ = "knowledge_improvement_suggestions"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    workspace_id: Mapped[str] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True, nullable=False)
+    suggestion_type: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(20), default="open", nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    recommended_action: Mapped[str] = mapped_column(Text, nullable=False)
+    knowledge_item_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("knowledge_items.id"), index=True)
+    expected_knowledge_item_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("knowledge_items.id"), index=True)
+    source_feedback_ids: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    evidence_json: Mapped[dict | None] = mapped_column(JSON)
+    metadata_json: Mapped[dict | None] = mapped_column(JSON)
+    generator: Mapped[str] = mapped_column(String(80), default="rule_based", nullable=False)
+    generator_version: Mapped[str] = mapped_column(String(120), default="knowledge_improvement.rule_v1", nullable=False)
+    confidence: Mapped[float | None] = mapped_column()
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime)
+    dismissed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
