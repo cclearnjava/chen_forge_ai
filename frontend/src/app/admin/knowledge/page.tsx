@@ -3,14 +3,17 @@
 import { useCallback, useEffect, useState } from "react";
 import AdminShell from "@/components/admin/admin-shell";
 import {
-  archiveKnowledgeItem, bulkUpdateKnowledgeReviewItems, createKnowledgeItem,
-  getKnowledgeDocuments, getKnowledgeItems, getKnowledgeReviewItems,
-  getKnowledgeVectorStatus, getNotificationSummary, getServices,
-  reindexActiveKnowledge, reindexKnowledgeItem,
-  updateKnowledgeItem, uploadKnowledgeDocument,
-  KNOWLEDGE_SOURCE_TYPES, type KnowledgeDocumentOut, type KnowledgeItemInput,
-  type KnowledgeItemOut, type KnowledgeReviewItemOut, type ServiceOut,
-} from "@/lib/admin-api";
+	  archiveKnowledgeItem, bulkUpdateKnowledgeReviewItems, createKnowledgeItem,
+	  archiveRetrievalEvalCase, createRetrievalEvalCase,
+	  getKnowledgeDocuments, getKnowledgeItems, getKnowledgeReviewItems,
+	  getKnowledgeVectorStatus, getNotificationSummary, getServices,
+	  getRetrievalEvalCases, getRetrievalEvalRun,
+	  reindexActiveKnowledge, reindexKnowledgeItem,
+	  runRetrievalEvaluation, updateKnowledgeItem, uploadKnowledgeDocument,
+	  KNOWLEDGE_SOURCE_TYPES, type KnowledgeDocumentOut, type KnowledgeItemInput,
+	  type KnowledgeItemOut, type KnowledgeReviewItemOut, type RetrievalEvalCaseOut,
+	  type RetrievalEvalRunDetailOut, type ServiceOut,
+	} from "@/lib/admin-api";
 
 const SOURCE_TYPE_LABELS: Record<string, string> = {
   manual: "手工录入", faq: "FAQ", case_study: "案例", methodology: "方法论",
@@ -82,20 +85,32 @@ export default function KnowledgePage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkService, setBulkService] = useState("");
-  const [indexing, setIndexing] = useState(false);
-  const [vectorStatuses, setVectorStatuses] = useState<Record<string, { knowledge_item_id: string; status: string; stale: boolean; error_message?: string | null; provider?: string | null; embedding_model?: string | null; vector_dim?: number | null; vector_store?: string | null }>>({});
+	  const [indexing, setIndexing] = useState(false);
+	  const [vectorStatuses, setVectorStatuses] = useState<Record<string, { knowledge_item_id: string; status: string; stale: boolean; error_message?: string | null; provider?: string | null; embedding_model?: string | null; vector_dim?: number | null; vector_store?: string | null }>>({});
+	  const [evalCases, setEvalCases] = useState<RetrievalEvalCaseOut[]>([]);
+	  const [evalRun, setEvalRun] = useState<RetrievalEvalRunDetailOut | null>(null);
+	  const [evalQuery, setEvalQuery] = useState("");
+	  const [evalTags, setEvalTags] = useState("");
+	  const [evalNotes, setEvalNotes] = useState("");
+	  const [expectedIds, setExpectedIds] = useState<Set<string>>(new Set());
+	  const [evalSaving, setEvalSaving] = useState(false);
+	  const [evalRunning, setEvalRunning] = useState(false);
 
   const loadDocuments = useCallback(() => {
     getKnowledgeDocuments().then((r) => setDocuments(r.items)).catch(() => {});
   }, []);
 
-  const loadReview = useCallback(() => {
+	  const loadReview = useCallback(() => {
     getKnowledgeReviewItems({
       status: "draft",
       document_id: reviewDoc || undefined,
       quality_flag: reviewQuality || undefined,
     }).then((r) => { setReviewItems(r.items); setReviewTotal(r.total); }).catch(() => {});
-  }, [reviewDoc, reviewQuality]);
+	  }, [reviewDoc, reviewQuality]);
+
+	  const loadEvalCases = useCallback(() => {
+	    getRetrievalEvalCases("active").then((r) => setEvalCases(r.items)).catch(() => {});
+	  }, []);
 
   useEffect(() => { loadReview(); }, [loadReview]);
 
@@ -120,9 +135,10 @@ export default function KnowledgePage() {
   useEffect(() => { queueMicrotask(load); }, [load]);
   useEffect(() => {
     getNotificationSummary().then((s) => setUnreadCount(s.unread_count)).catch(() => {});
-    getServices({ status: "active" }).then((r) => setServices(r.items)).catch(() => {});
-    loadDocuments();
-  }, [loadDocuments]);
+	    getServices({ status: "active" }).then((r) => setServices(r.items)).catch(() => {});
+	    loadDocuments();
+	    loadEvalCases();
+	  }, [loadDocuments, loadEvalCases]);
 
   const handleUpload = async (file: File | undefined) => {
     if (!file) return;
@@ -165,9 +181,13 @@ export default function KnowledgePage() {
     }
   };
 
-  const toggleSelect = (id: string) => {
-    setSelectedIds((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
-  };
+	  const toggleSelect = (id: string) => {
+	    setSelectedIds((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+	  };
+
+	  const toggleExpected = (id: string) => {
+	    setExpectedIds((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+	  };
 
   const viewDocDrafts = (docId: string) => { setReviewDoc(docId); setStatus("draft"); };
 
@@ -221,12 +241,52 @@ export default function KnowledgePage() {
     }
   };
 
-  const doArchive = async (id: string) => {
-    try { await archiveKnowledgeItem(id); setConfirmArchive(null); load(); }
-    catch (e: unknown) { setError(e instanceof Error ? e.message : "归档失败"); }
-  };
+	  const doArchive = async (id: string) => {
+	    try { await archiveKnowledgeItem(id); setConfirmArchive(null); load(); }
+	    catch (e: unknown) { setError(e instanceof Error ? e.message : "归档失败"); }
+	  };
 
-  const serviceName = (id: string | null) => services.find((s) => s.id === id)?.name;
+	  const createEvalCase = async () => {
+	    if (!evalQuery.trim() || expectedIds.size === 0) { setError("评估问题和期望命中的知识条目为必填"); return; }
+	    setEvalSaving(true); setError(null);
+	    try {
+	      await createRetrievalEvalCase({
+	        query: evalQuery.trim(),
+	        expected_knowledge_item_ids: Array.from(expectedIds),
+	        tags_json: evalTags.split(",").map((t) => t.trim()).filter(Boolean),
+	        notes: evalNotes.trim() || null,
+	      });
+	      setEvalQuery(""); setEvalTags(""); setEvalNotes(""); setExpectedIds(new Set());
+	      loadEvalCases();
+	    } catch (e: unknown) {
+	      setError(e instanceof Error ? e.message : "创建评估用例失败");
+	    } finally {
+	      setEvalSaving(false);
+	    }
+	  };
+
+	  const runEval = async (caseIds?: string[]) => {
+	    setEvalRunning(true); setError(null);
+	    try {
+	      const run = await runRetrievalEvaluation({ case_ids: caseIds, k: 5 });
+	      const detail = await getRetrievalEvalRun(run.id);
+	      setEvalRun(detail);
+	      loadEvalCases();
+	    } catch (e: unknown) {
+	      setError(e instanceof Error ? e.message : "运行评估失败");
+	    } finally {
+	      setEvalRunning(false);
+	    }
+	  };
+
+	  const archiveEval = async (id: string) => {
+	    try { await archiveRetrievalEvalCase(id); loadEvalCases(); }
+	    catch (e: unknown) { setError(e instanceof Error ? e.message : "归档评估用例失败"); }
+	  };
+
+	  const serviceName = (id: string | null) => services.find((s) => s.id === id)?.name;
+	  const knowledgeTitle = (id: string) => items.find((it) => it.id === id)?.title || id;
+	  const pct = (n: number) => `${Math.round(n * 100)}%`;
 
   return (
     <AdminShell active="knowledge" unreadCount={unreadCount} eyebrow="Workspace 私有知识" title="知识库" subtitle={`${total} 条知识`}>
@@ -338,9 +398,85 @@ export default function KnowledgePage() {
             ))
           )}
         </div>
-      </section>
+	      </section>
 
-      {editorOpen && (
+	      <section className="knowledge-review">
+	        <div className="panel-heading"><h2>检索评估{evalCases.length > 0 && ` · ${evalCases.length} 条用例`}</h2></div>
+	        <div className="subform-grid">
+	          <label className="subform-full">评估问题
+	            <input value={evalQuery} onChange={(e) => setEvalQuery(e.target.value)} placeholder="如：企业知识库 PoC 怎么验收？" />
+	          </label>
+	          <label>标签
+	            <input value={evalTags} onChange={(e) => setEvalTags(e.target.value)} placeholder="rag, poc" />
+	          </label>
+	          <label>备注
+	            <input value={evalNotes} onChange={(e) => setEvalNotes(e.target.value)} placeholder="期望命中哪些资料" />
+	          </label>
+	        </div>
+	        <div className="review-list">
+	          {items.filter((it) => it.status === "active").slice(0, 12).map((it) => (
+	            <div key={it.id} className={`review-row ${expectedIds.has(it.id) ? "selected" : ""}`}>
+	              <label className="review-checkbox">
+	                <input type="checkbox" checked={expectedIds.has(it.id)} onChange={() => toggleExpected(it.id)} />
+	              </label>
+	              <div className="review-main">
+	                <strong>{it.title}</strong>
+	                <small>{SOURCE_TYPE_LABELS[it.source_type] || it.source_type}{it.tags_json?.length ? ` · ${it.tags_json.join(" / ")}` : ""}</small>
+	              </div>
+	            </div>
+	          ))}
+	          {items.filter((it) => it.status === "active").length === 0 && <p className="subresource-empty">当前列表没有 active 知识条目可选</p>}
+	        </div>
+	        <div className="confirm-actions">
+	          <button className="button primary small" onClick={createEvalCase} disabled={evalSaving}>{evalSaving ? "保存中..." : "创建评估用例"}</button>
+	          <button className="button ghost small" onClick={() => runEval()} disabled={evalRunning || evalCases.length === 0}>{evalRunning ? "评估中..." : "运行全部评估"}</button>
+	        </div>
+	        {evalCases.length > 0 && (
+	          <div className="document-list">
+	            {evalCases.map((c) => (
+	              <div key={c.id} className="document-row">
+	                <strong>{c.query}</strong>
+	                <span className="document-meta">
+	                  <span>{c.expected_knowledge_item_ids.length} 个期望命中</span>
+	                  {c.tags_json.map((t) => <span key={t} className="knowledge-tag">#{t}</span>)}
+	                  <button className="button ghost small" onClick={() => runEval([c.id])} disabled={evalRunning}>运行</button>
+	                  <button className="button ghost small" onClick={() => archiveEval(c.id)}>归档</button>
+	                </span>
+	              </div>
+	            ))}
+	          </div>
+	        )}
+	        {evalRun && (
+	          <div className="document-list">
+	            <div className="document-row">
+	              <strong>最近一次评估</strong>
+	              <span className="document-meta">
+	                <span>Recall@{evalRun.run.k}: {pct(evalRun.run.average_recall_at_k)}</span>
+	                <span>Precision@{evalRun.run.k}: {pct(evalRun.run.average_precision_at_k)}</span>
+	                <span>漏召回 {evalRun.run.miss_count}</span>
+	                <span>空召回 {evalRun.run.zero_hit_count}</span>
+	                {evalRun.run.vector_store && <span>{evalRun.run.vector_store}</span>}
+	                {evalRun.run.embedding_model && <span>{evalRun.run.embedding_model}</span>}
+	              </span>
+	            </div>
+	            {evalRun.results.map((r) => (
+	              <div key={r.id} className="document-row">
+	                <strong>{r.status === "passed" ? "通过" : r.status === "missed" ? "漏召回" : r.status === "empty" ? "空召回" : "错误"} · {r.query}</strong>
+	                <span className="document-meta">
+	                  <span>Recall {pct(r.recall_at_k)}</span>
+	                  <span>Precision {pct(r.precision_at_k)}</span>
+	                  <span>命中 {r.hit_count}</span>
+	                  {r.matched_expected_ids.map((id) => <span key={id}>命中：{knowledgeTitle(id)}</span>)}
+	                  {r.missed_expected_ids.map((id) => <span key={id} className="document-error">漏掉：{knowledgeTitle(id)}</span>)}
+	                  {r.error_message && <span className="document-error">{r.error_message}</span>}
+	                </span>
+	              </div>
+	            ))}
+	          </div>
+	        )}
+	      </section>
+
+	      {editorOpen && (
         <section className="knowledge-editor">
           <div className="panel-heading"><h2>{editId ? "编辑知识" : "新增知识"}</h2></div>
           {formError && <p className="error-msg">{formError}</p>}

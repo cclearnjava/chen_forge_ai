@@ -785,3 +785,75 @@ class KnowledgeVector(Base):
     indexed_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+
+
+# ── Knowledge Retrieval Evaluation (P6.9) ──
+
+RETRIEVAL_EVAL_CASE_STATUSES = ("active", "archived")
+RETRIEVAL_EVAL_RUN_STATUSES = ("running", "completed", "failed")
+RETRIEVAL_EVAL_RESULT_STATUSES = ("passed", "missed", "empty", "error")
+
+
+class RetrievalEvalCase(Base):
+    __tablename__ = "retrieval_eval_cases"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    workspace_id: Mapped[str] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True, nullable=False)
+    query: Mapped[str] = mapped_column(Text, nullable=False)
+    expected_knowledge_item_ids: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    tags_json: Mapped[list | None] = mapped_column(JSON, default=list)
+    notes: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+
+    results: Mapped[list["RetrievalEvalResult"]] = relationship(back_populates="case")
+
+
+class RetrievalEvalRun(Base):
+    __tablename__ = "retrieval_eval_runs"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    workspace_id: Mapped[str] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="running", nullable=False, index=True)
+    case_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    average_recall_at_k: Mapped[float] = mapped_column(default=0.0, nullable=False)
+    average_precision_at_k: Mapped[float] = mapped_column(default=0.0, nullable=False)
+    zero_hit_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    miss_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    error_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    k: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
+    retriever_version: Mapped[str | None] = mapped_column(String(120))
+    vector_store: Mapped[str | None] = mapped_column(String(80))
+    embedding_model: Mapped[str | None] = mapped_column(String(120))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+    results: Mapped[list["RetrievalEvalResult"]] = relationship(
+        back_populates="run",
+        order_by="RetrievalEvalResult.created_at",
+    )
+
+
+class RetrievalEvalResult(Base):
+    __tablename__ = "retrieval_eval_results"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    workspace_id: Mapped[str] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True, nullable=False)
+    run_id: Mapped[str] = mapped_column(String(36), ForeignKey("retrieval_eval_runs.id"), index=True, nullable=False)
+    case_id: Mapped[str] = mapped_column(String(36), ForeignKey("retrieval_eval_cases.id"), index=True, nullable=False)
+    query: Mapped[str] = mapped_column(Text, nullable=False)
+    expected_knowledge_item_ids: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    actual_knowledge_item_ids: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    matched_expected_ids: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    missed_expected_ids: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    extra_hit_ids: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    recall_at_k: Mapped[float] = mapped_column(default=0.0, nullable=False)
+    precision_at_k: Mapped[float] = mapped_column(default=0.0, nullable=False)
+    hit_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    citation_pack_json: Mapped[dict | None] = mapped_column(JSON)
+    status: Mapped[str] = mapped_column(String(20), default="empty", nullable=False, index=True)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+    run: Mapped["RetrievalEvalRun"] = relationship(back_populates="results")
+    case: Mapped["RetrievalEvalCase"] = relationship(back_populates="results")

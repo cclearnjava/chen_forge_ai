@@ -850,6 +850,95 @@ class KnowledgeVectorReindexOut(BaseModel):
     failed_count: int = 0
 
 
+# ── Knowledge Retrieval Evaluation (P6.9) ──
+
+class RetrievalEvalCaseCreate(BaseModel):
+    query: str = Field(..., min_length=1)
+    expected_knowledge_item_ids: list[str] = Field(..., min_length=1, max_length=20)
+    tags_json: list[str] = Field(default_factory=list)
+    notes: str | None = None
+
+
+class RetrievalEvalCaseUpdate(BaseModel):
+    query: str | None = Field(None, min_length=1)
+    expected_knowledge_item_ids: list[str] | None = Field(None, min_length=1, max_length=20)
+    tags_json: list[str] | None = None
+    notes: str | None = None
+    status: str | None = None
+
+    @field_validator("status")
+    @classmethod
+    def _check_status(cls, v: str | None) -> str | None:
+        if v is not None and v not in ("active", "archived"):
+            raise ValueError(f"Invalid status: {v}")
+        return v
+
+
+class RetrievalEvalCaseOut(BaseModel):
+    id: str
+    workspace_id: str
+    query: str
+    expected_knowledge_item_ids: list[str] = Field(default_factory=list)
+    tags_json: list[str] = Field(default_factory=list)
+    notes: str | None = None
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    model_config = {"from_attributes": True}
+
+
+class RetrievalEvalRunCreate(BaseModel):
+    case_ids: list[str] | None = Field(default=None, max_length=100)
+    k: int = Field(default=5, ge=1, le=20)
+
+
+class RetrievalEvalRunOut(BaseModel):
+    id: str
+    workspace_id: str
+    status: str
+    case_count: int = 0
+    average_recall_at_k: float = 0.0
+    average_precision_at_k: float = 0.0
+    zero_hit_count: int = 0
+    miss_count: int = 0
+    error_count: int = 0
+    k: int = 5
+    retriever_version: str | None = None
+    vector_store: str | None = None
+    embedding_model: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    error_message: str | None = None
+    created_at: datetime
+    model_config = {"from_attributes": True}
+
+
+class RetrievalEvalResultOut(BaseModel):
+    id: str
+    workspace_id: str
+    run_id: str
+    case_id: str
+    query: str
+    expected_knowledge_item_ids: list[str] = Field(default_factory=list)
+    actual_knowledge_item_ids: list[str] = Field(default_factory=list)
+    matched_expected_ids: list[str] = Field(default_factory=list)
+    missed_expected_ids: list[str] = Field(default_factory=list)
+    extra_hit_ids: list[str] = Field(default_factory=list)
+    recall_at_k: float = 0.0
+    precision_at_k: float = 0.0
+    hit_count: int = 0
+    citation_pack_json: dict | None = None
+    status: str
+    error_message: str | None = None
+    created_at: datetime
+    model_config = {"from_attributes": True}
+
+
+class RetrievalEvalRunDetailOut(BaseModel):
+    run: RetrievalEvalRunOut
+    results: list[RetrievalEvalResultOut] = Field(default_factory=list)
+
+
 # ── External Connector (P5) ──
 
 _CONNECTOR_PROVIDERS = ("mock", "email", "feishu", "wechat_work")

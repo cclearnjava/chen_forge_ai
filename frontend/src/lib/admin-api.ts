@@ -775,6 +775,94 @@ export async function reindexActiveKnowledge(limit?: number): Promise<{ indexed_
 }
 
 
+/* ── Retrieval Evaluation (P6.9) ── */
+
+export type RetrievalEvalCaseOut = {
+  id: string;
+  workspace_id: string;
+  query: string;
+  expected_knowledge_item_ids: string[];
+  tags_json: string[];
+  notes?: string | null;
+  status: "active" | "archived";
+  created_at: string;
+  updated_at: string;
+};
+
+export type RetrievalEvalRunOut = {
+  id: string;
+  workspace_id: string;
+  status: string;
+  case_count: number;
+  average_recall_at_k: number;
+  average_precision_at_k: number;
+  zero_hit_count: number;
+  miss_count: number;
+  error_count: number;
+  k: number;
+  retriever_version?: string | null;
+  vector_store?: string | null;
+  embedding_model?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  error_message?: string | null;
+  created_at: string;
+};
+
+export type RetrievalEvalResultOut = {
+  id: string;
+  workspace_id: string;
+  run_id: string;
+  case_id: string;
+  query: string;
+  expected_knowledge_item_ids: string[];
+  actual_knowledge_item_ids: string[];
+  matched_expected_ids: string[];
+  missed_expected_ids: string[];
+  extra_hit_ids: string[];
+  recall_at_k: number;
+  precision_at_k: number;
+  hit_count: number;
+  citation_pack_json?: { hits?: Array<{ knowledge_item_id: string; title?: string; score?: number; retrieval_mode?: string; match_reasons?: string[] }> } | null;
+  status: "passed" | "missed" | "empty" | "error";
+  error_message?: string | null;
+  created_at: string;
+};
+
+export type RetrievalEvalRunDetailOut = {
+  run: RetrievalEvalRunOut;
+  results: RetrievalEvalResultOut[];
+};
+
+export async function getRetrievalEvalCases(status?: string): Promise<{ items: RetrievalEvalCaseOut[]; total: number }> {
+  const sp = new URLSearchParams();
+  if (status) sp.set("status", status);
+  const qs = sp.toString();
+  return api(`/admin/knowledge/evaluations/cases${qs ? `?${qs}` : ""}`);
+}
+
+export async function createRetrievalEvalCase(data: {
+  query: string;
+  expected_knowledge_item_ids: string[];
+  tags_json?: string[];
+  notes?: string | null;
+}): Promise<RetrievalEvalCaseOut> {
+  return api("/admin/knowledge/evaluations/cases", { method: "POST", body: JSON.stringify(data) });
+}
+
+export async function archiveRetrievalEvalCase(id: string): Promise<RetrievalEvalCaseOut> {
+  return api(`/admin/knowledge/evaluations/cases/${id}`, { method: "DELETE" });
+}
+
+export async function runRetrievalEvaluation(data: { case_ids?: string[]; k?: number }): Promise<RetrievalEvalRunOut> {
+  return api("/admin/knowledge/evaluations/runs", { method: "POST", body: JSON.stringify(data) });
+}
+
+export async function getRetrievalEvalRun(id: string): Promise<RetrievalEvalRunDetailOut> {
+  return api(`/admin/knowledge/evaluations/runs/${id}`);
+}
+
+
 /* ── External Connectors (P5) ── */
 
 export type ExternalConnectorProvider = "mock" | "email" | "feishu" | "wechat_work";
