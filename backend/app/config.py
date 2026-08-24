@@ -22,6 +22,21 @@ class Settings(BaseSettings):
     openai_base_url: str = "https://api.openai.com/v1"
     llm_model: str = "gpt-4o-mini"
 
+    # ── Embedding (P6.7) ──
+    embedding_provider: str = "mock"
+    embedding_model: str = "mock_hash_embedding_v1"
+    embedding_base_url: str = ""
+    embedding_api_key: str = ""
+    embedding_dim: int = 0  # 0 = auto-detect from first response
+    embedding_timeout_seconds: int = 20
+    embedding_max_input_chars: int = 12000
+
+    # ── Vector Store (P6.8) ──
+    vector_store: str = "sqlite_json"  # sqlite_json | pgvector
+    pgvector_index_type: str = "hnsw"  # hnsw | ivfflat
+    pgvector_distance: str = "cosine"  # cosine (only cosine wired in MVP)
+    pgvector_probes: int = 10  # ivfflat probes / hnsw ef_search hint for migration script
+
     upload_dir: str = "./storage/uploads"
     max_upload_size_mb: int = 20
     knowledge_document_storage_dir: str = "./storage/knowledge_documents"

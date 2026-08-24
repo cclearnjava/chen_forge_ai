@@ -837,6 +837,7 @@ class KnowledgeVectorStatusOut(BaseModel):
     stale: bool = False
     indexed_at: datetime | None = None
     error_message: str | None = None
+    vector_store: str | None = None
 
 
 class KnowledgeVectorReindexRequest(BaseModel):

@@ -138,6 +138,62 @@ class TestKnowledgeVectorIndexing:
         assert it1.id in ids
 
 
+class TestProviderSwitch:
+    """P6.7: after switching provider/model, the old-model vector must not be reused."""
+
+    def _switch_provider(self, monkeypatch, *, name: str, model: str):
+        import app.services.embedding_provider as ep
+        switched = ep.MockHashEmbeddingProvider()
+        switched.name = name
+        switched.model = model
+        switched.dim = 64  # keep dim so embed_text still produces a comparable vector
+        monkeypatch.setattr(ep, "_provider", switched)
+
+    def test_get_vector_status_ignores_old_model_vector(self, monkeypatch):
+        init_db(); db = SessionLocal()
+        ws = _workspace(db)
+        it = _item(db, ws.id)
+        index_knowledge_item(db, ws.id, it.id)
+        st_before = get_vector_status(db, ws.id, it.id)
+        assert st_before["status"] == "indexed"
+        assert st_before["embedding_model"] == "mock_hash_embedding_v1"
+
+        self._switch_provider(monkeypatch, name="openai_compatible", model="text-embedding-3-small")
+        st_after = get_vector_status(db, ws.id, it.id)
+        db.close()
+        # old vector is keyed by the mock model → new provider sees it as not indexed
+        assert st_after["status"] == "not_indexed"
+        assert st_after["provider"] is None and st_after["embedding_model"] is None
+
+    def test_search_ignores_old_model_vector(self, monkeypatch):
+        init_db(); db = SessionLocal()
+        ws = _workspace(db)
+        it = _item(db, ws.id, title="切换测试", content_markdown="provider 切换后旧向量不应被检索命中")
+        index_knowledge_item(db, ws.id, it.id)
+        q = knowledge_item_embedding_text(it)
+
+        self._switch_provider(monkeypatch, name="openai_compatible", model="text-embedding-3-small")
+        res = search_vectors(db, ws.id, q)
+        ids = {h["knowledge_item_id"] for h in res}
+        db.close()
+        assert it.id not in ids
+
+    def test_reindex_after_switch_writes_new_provider(self, monkeypatch):
+        init_db(); db = SessionLocal()
+        ws = _workspace(db)
+        it = _item(db, ws.id)
+        index_knowledge_item(db, ws.id, it.id)
+
+        self._switch_provider(monkeypatch, name="openai_compatible", model="text-embedding-3-small")
+        vec = index_knowledge_item(db, ws.id, it.id)
+        st = get_vector_status(db, ws.id, it.id)
+        db.close()
+        assert vec.provider == "openai_compatible"
+        assert vec.embedding_model == "text-embedding-3-small"
+        assert st["status"] == "indexed"
+        assert st["provider"] == "openai_compatible"
+
+
 class TestHybridRetrieval:
     def test_hybrid_citation_pack_structure_compat(self):
         init_db(); db = SessionLocal()

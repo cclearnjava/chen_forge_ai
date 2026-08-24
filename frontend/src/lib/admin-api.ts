@@ -759,6 +759,7 @@ export type KnowledgeVectorStatusOut = {
   stale: boolean;
   indexed_at?: string | null;
   error_message?: string | null;
+  vector_store?: string | null;
 };
 
 export async function getKnowledgeVectorStatus(id: string): Promise<KnowledgeVectorStatusOut> {

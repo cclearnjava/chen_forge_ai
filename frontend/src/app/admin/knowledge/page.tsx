@@ -83,7 +83,7 @@ export default function KnowledgePage() {
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkService, setBulkService] = useState("");
   const [indexing, setIndexing] = useState(false);
-  const [vectorStatuses, setVectorStatuses] = useState<Record<string, { knowledge_item_id: string; status: string; stale: boolean; error_message?: string | null }>>({});
+  const [vectorStatuses, setVectorStatuses] = useState<Record<string, { knowledge_item_id: string; status: string; stale: boolean; error_message?: string | null; provider?: string | null; embedding_model?: string | null; vector_dim?: number | null; vector_store?: string | null }>>({});
 
   const loadDocuments = useCallback(() => {
     getKnowledgeDocuments().then((r) => setDocuments(r.items)).catch(() => {});
@@ -409,6 +409,14 @@ export default function KnowledgePage() {
                         : vectorStatuses[it.id].status === "stale" ? "待更新"
                         : vectorStatuses[it.id].status === "failed" ? `失败${vectorStatuses[it.id].error_message ? "：" + vectorStatuses[it.id].error_message : ""}`
                         : vectorStatuses[it.id].status}
+                      {(vectorStatuses[it.id].status === "indexed" || vectorStatuses[it.id].status === "stale") && vectorStatuses[it.id].embedding_model && (
+                        <span className="vector-status-meta">
+                          {" · "}
+                          {[vectorStatuses[it.id].vector_store, vectorStatuses[it.id].embedding_model,
+                            vectorStatuses[it.id].vector_dim ? `${vectorStatuses[it.id].vector_dim}d` : null]
+                            .filter(Boolean).join(" / ")}
+                        </span>
+                      )}
                     </span>
                   )}
                 </span>

@@ -305,7 +305,7 @@ def reindex_item_api(knowledge_id: str, db: Session = Depends(get_db), _admin: s
         vec = index_knowledge_item(db, wid, knowledge_id)
         db.commit()
     except ValueError as exc:
-        db.rollback()
+        db.commit()
         raise HTTPException(status_code=422, detail=str(exc))
     return {"knowledge_item_id": vec.knowledge_item_id, "status": vec.status,
             "embedding_model": vec.embedding_model}
