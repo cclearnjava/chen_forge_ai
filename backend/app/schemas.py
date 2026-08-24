@@ -906,6 +906,9 @@ class RetrievalEvalRunOut(BaseModel):
     retriever_version: str | None = None
     vector_store: str | None = None
     embedding_model: str | None = None
+    reranker_enabled: bool | None = False
+    reranker_provider: str | None = None
+    reranker_model: str | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
     error_message: str | None = None

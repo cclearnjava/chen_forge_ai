@@ -37,6 +37,15 @@ class Settings(BaseSettings):
     pgvector_distance: str = "cosine"  # cosine (only cosine wired in MVP)
     pgvector_probes: int = 10  # ivfflat probes / hnsw ef_search hint for migration script
 
+    # ── Reranker (P6.10) ──
+    reranker_provider: str = "none"  # none | mock | openai_compatible
+    reranker_model: str = "none"
+    reranker_base_url: str = ""
+    reranker_api_key: str = ""
+    reranker_timeout_seconds: int = 20
+    reranker_max_candidates: int = 20
+    reranker_min_candidates: int = 2
+
     upload_dir: str = "./storage/uploads"
     max_upload_size_mb: int = 20
     knowledge_document_storage_dir: str = "./storage/knowledge_documents"

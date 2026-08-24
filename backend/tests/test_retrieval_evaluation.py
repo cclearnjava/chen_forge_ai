@@ -78,6 +78,29 @@ class TestRetrievalEvaluationService:
         assert expected.id in result.matched_expected_ids
         assert result.citation_pack_json["hit_count"] >= 1
 
+    def test_run_eval_records_reranker_config(self, monkeypatch):
+        init_db()
+        db = SessionLocal()
+        ws = _workspace(db)
+        expected = _item(db, ws.id, title="企业微信客服自动回复")
+        case = create_eval_case(db, ws.id, {
+            "query": "企业微信自动回复",
+            "expected_knowledge_item_ids": [expected.id],
+        })
+        from app.config import settings
+        import app.services.reranker_provider as rp
+
+        monkeypatch.setattr(settings, "reranker_provider", "mock")
+        monkeypatch.setattr(settings, "reranker_model", "mock_overlap_reranker_v1")
+        rp._provider = None
+        run = run_retrieval_evaluation(db, ws.id, case_ids=[case.id], k=5)
+        db.close()
+
+        assert run.reranker_enabled is True
+        assert run.reranker_provider == "mock"
+        assert run.reranker_model == "mock_overlap_reranker_v1"
+        assert run.results[0].citation_pack_json["reranker_enabled"] is True
+
     def test_cross_workspace_expected_item_rejected(self):
         init_db()
         db = SessionLocal()

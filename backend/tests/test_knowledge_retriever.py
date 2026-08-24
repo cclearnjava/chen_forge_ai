@@ -145,3 +145,61 @@ class TestKnowledgeRetriever:
         src = hits[0]["source"]
         assert src["document_id"] == foreign_doc.id
         assert src["document_filename"] is None
+
+    def test_mock_reranker_can_reorder_existing_candidates(self, monkeypatch):
+        init_db(); db = SessionLocal()
+        ws = _workspace(db)
+        _item(
+            db,
+            ws.id,
+            title="通用实施说明",
+            summary="销售流程说明",
+            content_markdown="企业微信 企业微信 企业微信 企业微信 企业微信 企业微信",
+        )
+        _item(
+            db,
+            ws.id,
+            title="企业微信客服自动回复",
+            summary="客户消息及时响应",
+            content_markdown="企业微信",
+        )
+        from app.config import settings
+        import app.services.reranker_provider as rp
+
+        monkeypatch.setattr(settings, "reranker_provider", "mock")
+        monkeypatch.setattr(settings, "reranker_model", "mock_overlap_reranker_v1")
+        rp._provider = None
+        pack = retrieve_knowledge_for_sales_reply(db, workspace_id=ws.id, query_text="企业微信客服自动回复")
+        db.close()
+
+        assert pack["reranker_enabled"] is True
+        assert pack["reranker_provider"] == "mock"
+        assert pack["hits"][0]["title"] == "企业微信客服自动回复"
+        assert pack["hits"][0]["reranked"] is True
+        assert pack["hits"][0]["rerank_score"] is not None
+
+    def test_reranker_failure_falls_back_to_original_order(self, monkeypatch):
+        init_db(); db = SessionLocal()
+        ws = _workspace(db)
+        _item(db, ws.id, title="更高分候选", content_markdown="报价方案流程边界")
+        _item(db, ws.id, title="较低分候选", content_markdown="报价")
+
+        from app.config import settings
+        import app.services.reranker_provider as rp
+
+        class FailingReranker:
+            name = "mock"
+            model = "broken"
+
+            def rerank(self, query, candidates):
+                raise RuntimeError("reranker unavailable")
+
+        monkeypatch.setattr(settings, "reranker_provider", "mock")
+        rp._provider = FailingReranker()
+        pack = retrieve_knowledge_for_sales_reply(db, workspace_id=ws.id, query_text="报价方案流程")
+        db.close()
+
+        assert pack["reranker_enabled"] is True
+        assert pack["reranker_error"] == "reranker unavailable"
+        assert pack["hits"][0]["title"] == "更高分候选"
+        assert all("rerank_score" not in h for h in pack["hits"])

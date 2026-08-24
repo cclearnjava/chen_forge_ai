@@ -8,6 +8,7 @@ but keeps this contract (KnowledgeHit / CitationPack) unchanged.
 """
 
 from sqlalchemy.orm import Session
+from app.config import settings
 from app.models import KnowledgeDocument, KnowledgeItem
 from app.services.text_utils import as_text_list, bigrams, overlap_score
 
@@ -137,6 +138,10 @@ def retrieve_knowledge_for_sales_reply(
             "query_summary": query_text[:120] if query_text else None,
             "hit_count": 0,
             "no_hit_reason": "no_active_knowledge",
+            "reranker_enabled": False,
+            "reranker_provider": settings.reranker_provider,
+            "reranker_model": settings.reranker_model,
+            "reranker_error": None,
             "hits": [],
         }
 
@@ -189,9 +194,12 @@ def retrieve_knowledge_for_sales_reply(
     merged.sort(key=lambda t: (-t[1], -(item_map[t[0]].updated_at.timestamp() if item_map.get(t[0]) and item_map[t[0]].updated_at else 0), t[0]))
 
     # Bulk-lookup KnowledgeDocument filenames for external_doc items
+    candidate_limit = max(max_hits, min(settings.reranker_max_candidates, len(merged)))
+    candidate_rows = merged[:candidate_limit]
+
     doc_ids = [
         (it.metadata_json or {}).get("document_id")
-        for iid, _, _, _, _, _ in merged
+        for iid, _, _, _, _, _ in candidate_rows
         if (it := item_map.get(iid)) and it.source_type == "external_doc" and it.metadata_json
     ]
     doc_map: dict[str, KnowledgeDocument] = {}
@@ -202,14 +210,14 @@ def retrieve_knowledge_for_sales_reply(
         ).all()
         doc_map = {d.id: d for d in docs}
 
-    hits: list[dict] = []
-    for iid, final, kw_s, vec_s, reasons, mode in merged[:max_hits]:
+    candidates: list[dict] = []
+    for iid, final, kw_s, vec_s, reasons, mode in candidate_rows:
         it = item_map.get(iid)
         if not it:
             continue
         excerpt = _build_excerpt(it.content_markdown or "")
         source = _citation_source(it, doc_map)
-        hits.append({
+        candidates.append({
             "knowledge_item_id": it.id,
             "title": it.title,
             "summary": it.summary,
@@ -225,11 +233,27 @@ def retrieve_knowledge_for_sales_reply(
             "source": source,
         })
 
+    reranker_error = None
+    reranker_enabled = settings.reranker_provider != "none"
+    hits = candidates
+    if reranker_enabled and len(candidates) >= settings.reranker_min_candidates:
+        try:
+            from app.services.reranker_provider import get_reranker_provider
+            hits = get_reranker_provider().rerank(query_text, candidates)
+        except Exception as exc:
+            reranker_error = str(exc)
+            hits = candidates
+
+    hits = hits[:max_hits]
     no_hit_reason = None if hits else "no_active_knowledge_matched"
     return {
         "retriever_version": RETRIEVER_VERSION,
         "query_summary": query_text[:120] if query_text else None,
         "hit_count": len(hits),
         "no_hit_reason": no_hit_reason,
+        "reranker_enabled": reranker_enabled,
+        "reranker_provider": settings.reranker_provider,
+        "reranker_model": settings.reranker_model,
+        "reranker_error": reranker_error,
         "hits": hits,
     }

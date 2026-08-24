@@ -457,6 +457,8 @@ export default function KnowledgePage() {
 	                <span>空召回 {evalRun.run.zero_hit_count}</span>
 	                {evalRun.run.vector_store && <span>{evalRun.run.vector_store}</span>}
 	                {evalRun.run.embedding_model && <span>{evalRun.run.embedding_model}</span>}
+	                <span>Reranker：{evalRun.run.reranker_enabled ? (evalRun.run.reranker_provider || "enabled") : "none"}</span>
+	                {evalRun.run.reranker_model && <span>{evalRun.run.reranker_model}</span>}
 	              </span>
 	            </div>
 	            {evalRun.results.map((r) => (
@@ -469,7 +471,20 @@ export default function KnowledgePage() {
 	                  {r.matched_expected_ids.map((id) => <span key={id}>命中：{knowledgeTitle(id)}</span>)}
 	                  {r.missed_expected_ids.map((id) => <span key={id} className="document-error">漏掉：{knowledgeTitle(id)}</span>)}
 	                  {r.error_message && <span className="document-error">{r.error_message}</span>}
+	                  {r.citation_pack_json?.reranker_error && <span className="document-error">Reranker：{r.citation_pack_json.reranker_error}</span>}
 	                </span>
+	                {r.citation_pack_json?.hits && r.citation_pack_json.hits.length > 0 && (
+	                  <span className="document-meta">
+	                    {r.citation_pack_json.hits.slice(0, 5).map((h, idx) => (
+	                      <span key={`${r.id}-${h.knowledge_item_id}`}>
+	                        #{idx + 1} {h.title || knowledgeTitle(h.knowledge_item_id)}
+	                        {h.score != null ? ` · score ${h.score}` : ""}
+	                        {h.reranked && h.rerank_score != null ? ` · rerank ${h.rerank_score}` : ""}
+	                        {h.retrieval_mode ? ` · ${h.retrieval_mode}` : ""}
+	                      </span>
+	                    ))}
+	                  </span>
+	                )}
 	              </div>
 	            ))}
 	          </div>

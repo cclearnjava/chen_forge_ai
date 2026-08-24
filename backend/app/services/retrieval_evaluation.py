@@ -153,6 +153,9 @@ def run_retrieval_evaluation(
         retriever_version=RETRIEVER_VERSION,
         vector_store=settings.vector_store,
         embedding_model=provider.model,
+        reranker_enabled=settings.reranker_provider != "none",
+        reranker_provider=settings.reranker_provider,
+        reranker_model=settings.reranker_model,
         started_at=datetime.utcnow(),
     )
     db.add(run)

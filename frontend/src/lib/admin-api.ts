@@ -803,6 +803,9 @@ export type RetrievalEvalRunOut = {
   retriever_version?: string | null;
   vector_store?: string | null;
   embedding_model?: string | null;
+  reranker_enabled?: boolean | null;
+  reranker_provider?: string | null;
+  reranker_model?: string | null;
   started_at?: string | null;
   completed_at?: string | null;
   error_message?: string | null;
@@ -823,7 +826,24 @@ export type RetrievalEvalResultOut = {
   recall_at_k: number;
   precision_at_k: number;
   hit_count: number;
-  citation_pack_json?: { hits?: Array<{ knowledge_item_id: string; title?: string; score?: number; retrieval_mode?: string; match_reasons?: string[] }> } | null;
+  citation_pack_json?: {
+    reranker_enabled?: boolean;
+    reranker_provider?: string | null;
+    reranker_model?: string | null;
+    reranker_error?: string | null;
+    hits?: Array<{
+      knowledge_item_id: string;
+      title?: string;
+      score?: number;
+      keyword_score?: number | null;
+      vector_score?: number | null;
+      reranked?: boolean;
+      rerank_score?: number | null;
+      rerank_reason?: string | null;
+      retrieval_mode?: string;
+      match_reasons?: string[];
+    }>;
+  } | null;
   status: "passed" | "missed" | "empty" | "error";
   error_message?: string | null;
   created_at: string;
