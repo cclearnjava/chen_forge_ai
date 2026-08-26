@@ -29,6 +29,7 @@ from app.services.knowledge_improvement_suggestions import (
 )
 from app.services.guided_knowledge_edit import apply_guided_knowledge_edit
 from app.services.guided_knowledge_create import apply_guided_knowledge_create
+from app.services.knowledge_change_validation import validate_knowledge_change
 from app.services.events import record_event
 from app.schemas import (
     KnowledgeItemCreate, KnowledgeItemOut, KnowledgeItemUpdate,
@@ -48,6 +49,10 @@ from app.schemas import (
     GuidedKnowledgeEditRequest,
     GuidedKnowledgeCreateOut,
     GuidedKnowledgeCreateRequest,
+    KnowledgeChangeValidationOut,
+    KnowledgeChangeValidationRequest,
+    RetrievalEvalResultOut,
+    RetrievalEvalRunOut,
 )
 from app.models import KnowledgeItem, KnowledgeSource
 
@@ -488,6 +493,42 @@ def reindex_active_api(req: KnowledgeVectorReindexRequest = KnowledgeVectorReind
     result = reindex_active_knowledge(db, wid, limit=req.limit)
     db.commit()
     return KnowledgeVectorReindexOut(**result).model_dump(mode="json")
+
+
+@router.post("/{knowledge_id}/validate-retrieval", status_code=201)
+def validate_knowledge_retrieval_api(
+    knowledge_id: str,
+    req: KnowledgeChangeValidationRequest = KnowledgeChangeValidationRequest(),
+    db: Session = Depends(get_db),
+    admin: str = Depends(get_admin_email),
+):
+    wid = get_current_workspace_id(db)
+    try:
+        result = validate_knowledge_change(db, wid, knowledge_id, req.model_dump())
+        record_event(
+            db, workspace_id=wid, type="knowledge_item.retrieval_validated",
+            source="knowledge_api", subject_type="knowledge_item",
+            subject_id=knowledge_id, actor=admin,
+            title="知识检索回归验证已完成",
+            payload_json={
+                "run_id": result["run"].id,
+                "case_count": result["case_count"],
+                "summary": result["summary"],
+            },
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        status_code = 404 if "not found" in str(exc).lower() else 422
+        raise HTTPException(status_code=status_code, detail=str(exc))
+    return KnowledgeChangeValidationOut(
+        knowledge_item_id=result["knowledge_item_id"],
+        case_ids=result["case_ids"],
+        case_count=result["case_count"],
+        run=RetrievalEvalRunOut.model_validate(result["run"]),
+        results=[RetrievalEvalResultOut.model_validate(r) for r in result["results"]],
+        summary=result["summary"],
+    ).model_dump(mode="json")
 
 
 # ── Knowledge items ──

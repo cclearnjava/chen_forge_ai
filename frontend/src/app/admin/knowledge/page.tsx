@@ -17,9 +17,11 @@ import {
 	  promoteRetrievalEvalCases,
 	  reindexActiveKnowledge, reindexKnowledgeItem,
 	  runRetrievalEvaluation, updateKnowledgeItem, uploadKnowledgeDocument,
+	  validateKnowledgeRetrieval,
 	  updateKnowledgeImprovementSuggestion,
 	  updateKnowledgeRetrievalFeedback,
-	  KNOWLEDGE_SOURCE_TYPES, type KnowledgeDocumentOut, type KnowledgeItemInput,
+	  KNOWLEDGE_SOURCE_TYPES, type KnowledgeChangeValidationOut,
+	  type KnowledgeDocumentOut, type KnowledgeItemInput,
 	  type KnowledgeImprovementSuggestionOut, type KnowledgeImprovementSuggestionStatus,
 	  type KnowledgeItemOut, type KnowledgeRetrievalFeedbackOut,
 	  type KnowledgeRetrievalFeedbackStatus, type KnowledgeReviewItemOut,
@@ -126,6 +128,8 @@ export default function KnowledgePage() {
 	  const [evalSaving, setEvalSaving] = useState(false);
 	  const [evalRunning, setEvalRunning] = useState(false);
 	  const [evalPromotingKey, setEvalPromotingKey] = useState<string | null>(null);
+	  const [validatingKey, setValidatingKey] = useState<string | null>(null);
+	  const [validationResults, setValidationResults] = useState<Record<string, KnowledgeChangeValidationOut>>({});
 	  const [feedbackItems, setFeedbackItems] = useState<KnowledgeRetrievalFeedbackOut[]>([]);
 	  const [feedbackTotal, setFeedbackTotal] = useState(0);
 	  const [feedbackStatus, setFeedbackStatus] = useState("open");
@@ -340,6 +344,19 @@ export default function KnowledgePage() {
 	      setError(e instanceof Error ? e.message : "运行评估失败");
 	    } finally {
 	      setEvalRunning(false);
+	    }
+	  };
+
+	  const validateRetrieval = async (id: string) => {
+	    setValidatingKey(id); setError(null);
+	    try {
+	      const result = await validateKnowledgeRetrieval(id, { k: 5 });
+	      setValidationResults((prev) => ({ ...prev, [id]: result }));
+	      setEvalRun({ run: result.run, results: result.results });
+	    } catch (e: unknown) {
+	      setError(e instanceof Error ? e.message : "验证检索效果失败");
+	    } finally {
+	      setValidatingKey(null);
 	    }
 	  };
 
@@ -1008,6 +1025,13 @@ export default function KnowledgePage() {
                       )}
                     </span>
                   )}
+                  {validationResults[it.id] && (
+                    <span className="knowledge-validation-summary">
+                      验证 {validationResults[it.id].case_count} 条 · Recall@{validationResults[it.id].run.k} {pct(validationResults[it.id].summary.average_recall_at_k ?? 0)}
+                      {" · "}通过 {validationResults[it.id].summary.passed_count ?? 0}
+                      {" · "}漏召回 {validationResults[it.id].summary.missed_count ?? 0}
+                    </span>
+                  )}
                 </span>
               </div>
               <div className="knowledge-actions">
@@ -1024,6 +1048,13 @@ export default function KnowledgePage() {
                         disabled={vectorStatuses[it.id]?.status === "indexing"}
                         onClick={() => handleSingleReindex(it.id)}>
                         {vectorStatuses[it.id]?.status === "indexing" ? "索引中" : "索引"}
+                      </button>
+                    )}
+                    {it.status === "active" && (
+                      <button className="button ghost small"
+                        disabled={validatingKey === it.id}
+                        onClick={() => validateRetrieval(it.id)}>
+                        {validatingKey === it.id ? "验证中" : "验证"}
                       </button>
                     )}
                     {it.status !== "archived" && <button className="button ghost small" onClick={() => setConfirmArchive(it.id)}>归档</button>}

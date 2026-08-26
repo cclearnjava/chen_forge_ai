@@ -1001,6 +1001,21 @@ export type RetrievalEvalRunDetailOut = {
   results: RetrievalEvalResultOut[];
 };
 
+export type KnowledgeChangeValidationOut = {
+  knowledge_item_id: string;
+  case_ids: string[];
+  case_count: number;
+  run: RetrievalEvalRunOut;
+  results: RetrievalEvalResultOut[];
+  summary: {
+    passed_count?: number;
+    missed_count?: number;
+    error_count?: number;
+    average_recall_at_k?: number;
+    average_precision_at_k?: number;
+  };
+};
+
 export async function getRetrievalEvalCases(status?: string): Promise<{ items: RetrievalEvalCaseOut[]; total: number }> {
   const sp = new URLSearchParams();
   if (status) sp.set("status", status);
@@ -1034,6 +1049,16 @@ export async function runRetrievalEvaluation(data: { case_ids?: string[]; k?: nu
 
 export async function getRetrievalEvalRun(id: string): Promise<RetrievalEvalRunDetailOut> {
   return api(`/admin/knowledge/evaluations/runs/${id}`);
+}
+
+export async function validateKnowledgeRetrieval(
+  id: string,
+  data?: { k?: number },
+): Promise<KnowledgeChangeValidationOut> {
+  return api(`/admin/knowledge/${id}/validate-retrieval`, {
+    method: "POST",
+    body: JSON.stringify(data || {}),
+  });
 }
 
 

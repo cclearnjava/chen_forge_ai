@@ -953,6 +953,19 @@ class RetrievalEvalRunDetailOut(BaseModel):
     results: list[RetrievalEvalResultOut] = Field(default_factory=list)
 
 
+class KnowledgeChangeValidationRequest(BaseModel):
+    k: int = Field(default=5, ge=1, le=20)
+
+
+class KnowledgeChangeValidationOut(BaseModel):
+    knowledge_item_id: str
+    case_ids: list[str] = Field(default_factory=list)
+    case_count: int = 0
+    run: RetrievalEvalRunOut
+    results: list[RetrievalEvalResultOut] = Field(default_factory=list)
+    summary: dict = Field(default_factory=dict)
+
+
 # ── Knowledge Retrieval Feedback (P6.11) ──
 
 KNOWLEDGE_RETRIEVAL_FEEDBACK_TYPES = ("helpful", "irrelevant", "missing", "outdated", "needs_review")
