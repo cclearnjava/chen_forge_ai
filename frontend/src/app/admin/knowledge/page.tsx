@@ -10,7 +10,7 @@ import {
 	  generateKnowledgeImprovementSuggestions,
 	  archiveRetrievalEvalCase, createRetrievalEvalCase,
 	  getKnowledgeImprovementSuggestions,
-	  getKnowledgeRetrievalFeedback,
+	  getKnowledgeRetrievalFeedback, getKnowledgeValidationHistory,
 	  getKnowledgeDocuments, getKnowledgeItems, getKnowledgeReviewItems,
 	  getKnowledgeVectorStatus, getNotificationSummary, getServices,
 	  getRetrievalEvalCases, getRetrievalEvalRun,
@@ -20,7 +20,8 @@ import {
 	  validateKnowledgeRetrieval,
 	  updateKnowledgeImprovementSuggestion,
 	  updateKnowledgeRetrievalFeedback,
-	  KNOWLEDGE_SOURCE_TYPES, type KnowledgeChangeValidationOut,
+	  KNOWLEDGE_SOURCE_TYPES, type KnowledgeChangeValidationHistoryOut,
+	  type KnowledgeChangeValidationOut,
 	  type KnowledgeDocumentOut, type KnowledgeItemInput,
 	  type KnowledgeImprovementSuggestionOut, type KnowledgeImprovementSuggestionStatus,
 	  type KnowledgeItemOut, type KnowledgeRetrievalFeedbackOut,
@@ -130,6 +131,8 @@ export default function KnowledgePage() {
 	  const [evalPromotingKey, setEvalPromotingKey] = useState<string | null>(null);
 	  const [validatingKey, setValidatingKey] = useState<string | null>(null);
 	  const [validationResults, setValidationResults] = useState<Record<string, KnowledgeChangeValidationOut>>({});
+	  const [validationHistory, setValidationHistory] = useState<Record<string, KnowledgeChangeValidationHistoryOut>>({});
+	  const [historyLoadingKey, setHistoryLoadingKey] = useState<string | null>(null);
 	  const [feedbackItems, setFeedbackItems] = useState<KnowledgeRetrievalFeedbackOut[]>([]);
 	  const [feedbackTotal, setFeedbackTotal] = useState(0);
 	  const [feedbackStatus, setFeedbackStatus] = useState("open");
@@ -353,10 +356,24 @@ export default function KnowledgePage() {
 	      const result = await validateKnowledgeRetrieval(id, { k: 5 });
 	      setValidationResults((prev) => ({ ...prev, [id]: result }));
 	      setEvalRun({ run: result.run, results: result.results });
+	      const history = await getKnowledgeValidationHistory(id, 5);
+	      setValidationHistory((prev) => ({ ...prev, [id]: history }));
 	    } catch (e: unknown) {
 	      setError(e instanceof Error ? e.message : "验证检索效果失败");
 	    } finally {
 	      setValidatingKey(null);
+	    }
+	  };
+
+	  const loadValidationHistory = async (id: string) => {
+	    setHistoryLoadingKey(id); setError(null);
+	    try {
+	      const history = await getKnowledgeValidationHistory(id, 5);
+	      setValidationHistory((prev) => ({ ...prev, [id]: history }));
+	    } catch (e: unknown) {
+	      setError(e instanceof Error ? e.message : "加载验证历史失败");
+	    } finally {
+	      setHistoryLoadingKey(null);
 	    }
 	  };
 
@@ -1032,6 +1049,13 @@ export default function KnowledgePage() {
                       {" · "}漏召回 {validationResults[it.id].summary.missed_count ?? 0}
                     </span>
                   )}
+                  {validationHistory[it.id]?.items.slice(0, 3).map((entry, idx) => (
+                    <span key={entry.run.id} className="knowledge-validation-summary">
+                      {idx === 0 ? "最近验证" : `历史 ${idx + 1}`} · {new Date(entry.run.created_at).toLocaleString()}
+                      {" · "}Recall@{entry.run.k} {pct(entry.summary.average_recall_at_k ?? 0)}
+                      {" · "}漏召回 {entry.summary.missed_count ?? 0}
+                    </span>
+                  ))}
                 </span>
               </div>
               <div className="knowledge-actions">
@@ -1055,6 +1079,13 @@ export default function KnowledgePage() {
                         disabled={validatingKey === it.id}
                         onClick={() => validateRetrieval(it.id)}>
                         {validatingKey === it.id ? "验证中" : "验证"}
+                      </button>
+                    )}
+                    {it.status === "active" && (
+                      <button className="button ghost small"
+                        disabled={historyLoadingKey === it.id}
+                        onClick={() => loadValidationHistory(it.id)}>
+                        {historyLoadingKey === it.id ? "加载中" : "历史"}
                       </button>
                     )}
                     {it.status !== "archived" && <button className="button ghost small" onClick={() => setConfirmArchive(it.id)}>归档</button>}

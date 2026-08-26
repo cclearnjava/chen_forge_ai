@@ -914,6 +914,8 @@ class RetrievalEvalRunOut(BaseModel):
     miss_count: int = 0
     error_count: int = 0
     k: int = 5
+    trigger_source: str | None = None
+    knowledge_item_id: str | None = None
     retriever_version: str | None = None
     vector_store: str | None = None
     embedding_model: str | None = None
@@ -964,6 +966,18 @@ class KnowledgeChangeValidationOut(BaseModel):
     run: RetrievalEvalRunOut
     results: list[RetrievalEvalResultOut] = Field(default_factory=list)
     summary: dict = Field(default_factory=dict)
+
+
+class KnowledgeChangeValidationHistoryItemOut(BaseModel):
+    run: RetrievalEvalRunOut
+    results: list[RetrievalEvalResultOut] = Field(default_factory=list)
+    summary: dict = Field(default_factory=dict)
+
+
+class KnowledgeChangeValidationHistoryOut(BaseModel):
+    knowledge_item_id: str
+    items: list[KnowledgeChangeValidationHistoryItemOut] = Field(default_factory=list)
+    total: int = 0
 
 
 # ── Knowledge Retrieval Feedback (P6.11) ──

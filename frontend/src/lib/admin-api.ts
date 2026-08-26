@@ -958,6 +958,8 @@ export type RetrievalEvalRunOut = {
   miss_count: number;
   error_count: number;
   k: number;
+  trigger_source?: string | null;
+  knowledge_item_id?: string | null;
   retriever_version?: string | null;
   vector_store?: string | null;
   embedding_model?: string | null;
@@ -1016,6 +1018,18 @@ export type KnowledgeChangeValidationOut = {
   };
 };
 
+export type KnowledgeChangeValidationHistoryItemOut = {
+  run: RetrievalEvalRunOut;
+  results: RetrievalEvalResultOut[];
+  summary: KnowledgeChangeValidationOut["summary"];
+};
+
+export type KnowledgeChangeValidationHistoryOut = {
+  knowledge_item_id: string;
+  items: KnowledgeChangeValidationHistoryItemOut[];
+  total: number;
+};
+
 export async function getRetrievalEvalCases(status?: string): Promise<{ items: RetrievalEvalCaseOut[]; total: number }> {
   const sp = new URLSearchParams();
   if (status) sp.set("status", status);
@@ -1059,6 +1073,13 @@ export async function validateKnowledgeRetrieval(
     method: "POST",
     body: JSON.stringify(data || {}),
   });
+}
+
+export async function getKnowledgeValidationHistory(
+  id: string,
+  limit = 10,
+): Promise<KnowledgeChangeValidationHistoryOut> {
+  return api(`/admin/knowledge/${id}/validation-history?limit=${limit}`);
 }
 
 

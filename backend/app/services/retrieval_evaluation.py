@@ -140,6 +140,8 @@ def run_retrieval_evaluation(
     *,
     case_ids: list[str] | None = None,
     k: int = 5,
+    trigger_source: str | None = None,
+    knowledge_item_id: str | None = None,
 ) -> RetrievalEvalRun:
     if k < 1 or k > 20:
         raise ValueError("k must be between 1 and 20")
@@ -150,6 +152,8 @@ def run_retrieval_evaluation(
         status="running",
         case_count=len(cases),
         k=k,
+        trigger_source=trigger_source,
+        knowledge_item_id=knowledge_item_id,
         retriever_version=RETRIEVER_VERSION,
         vector_store=settings.vector_store,
         embedding_model=provider.model,

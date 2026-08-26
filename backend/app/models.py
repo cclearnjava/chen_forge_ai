@@ -837,6 +837,8 @@ class RetrievalEvalRun(Base):
     miss_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     error_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     k: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
+    trigger_source: Mapped[str | None] = mapped_column(String(80), index=True)
+    knowledge_item_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("knowledge_items.id"), index=True)
     retriever_version: Mapped[str | None] = mapped_column(String(120))
     vector_store: Mapped[str | None] = mapped_column(String(80))
     embedding_model: Mapped[str | None] = mapped_column(String(120))

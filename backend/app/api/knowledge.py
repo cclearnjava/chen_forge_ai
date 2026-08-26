@@ -29,7 +29,7 @@ from app.services.knowledge_improvement_suggestions import (
 )
 from app.services.guided_knowledge_edit import apply_guided_knowledge_edit
 from app.services.guided_knowledge_create import apply_guided_knowledge_create
-from app.services.knowledge_change_validation import validate_knowledge_change
+from app.services.knowledge_change_validation import list_knowledge_validation_history, validate_knowledge_change
 from app.services.events import record_event
 from app.schemas import (
     KnowledgeItemCreate, KnowledgeItemOut, KnowledgeItemUpdate,
@@ -49,6 +49,8 @@ from app.schemas import (
     GuidedKnowledgeEditRequest,
     GuidedKnowledgeCreateOut,
     GuidedKnowledgeCreateRequest,
+    KnowledgeChangeValidationHistoryItemOut,
+    KnowledgeChangeValidationHistoryOut,
     KnowledgeChangeValidationOut,
     KnowledgeChangeValidationRequest,
     RetrievalEvalResultOut,
@@ -528,6 +530,33 @@ def validate_knowledge_retrieval_api(
         run=RetrievalEvalRunOut.model_validate(result["run"]),
         results=[RetrievalEvalResultOut.model_validate(r) for r in result["results"]],
         summary=result["summary"],
+    ).model_dump(mode="json")
+
+
+@router.get("/{knowledge_id}/validation-history")
+def list_knowledge_validation_history_api(
+    knowledge_id: str,
+    limit: int = Query(10, ge=1, le=50),
+    db: Session = Depends(get_db),
+    _admin: str = Depends(get_admin_email),
+):
+    wid = get_current_workspace_id(db)
+    try:
+        items = list_knowledge_validation_history(db, wid, knowledge_id, limit=limit)
+    except ValueError as exc:
+        status_code = 404 if "not found" in str(exc).lower() else 422
+        raise HTTPException(status_code=status_code, detail=str(exc))
+    return KnowledgeChangeValidationHistoryOut(
+        knowledge_item_id=knowledge_id,
+        items=[
+            KnowledgeChangeValidationHistoryItemOut(
+                run=RetrievalEvalRunOut.model_validate(item["run"]),
+                results=[RetrievalEvalResultOut.model_validate(r) for r in item["results"]],
+                summary=item["summary"],
+            )
+            for item in items
+        ],
+        total=len(items),
     ).model_dump(mode="json")
 
 
