@@ -832,6 +832,13 @@ export async function updateKnowledgeImprovementSuggestion(
   return api(`/admin/knowledge/improvement-suggestions/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 }
 
+export async function applyGuidedKnowledgeEdit(
+  id: string,
+  data: { patch: Partial<KnowledgeItemInput>; reindex?: boolean },
+): Promise<{ item: KnowledgeItemOut; suggestion: KnowledgeImprovementSuggestionOut; vector_status?: { knowledge_item_id: string; status: string; stale: boolean; error_message?: string | null } | null }> {
+  return api(`/admin/knowledge/improvement-suggestions/${id}/apply-knowledge-edit`, { method: "POST", body: JSON.stringify(data) });
+}
+
 /* ── Knowledge Review / Activation (P6.4) ── */
 
 export type KnowledgeQualityFlag =

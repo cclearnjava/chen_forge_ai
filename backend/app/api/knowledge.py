@@ -27,6 +27,7 @@ from app.services.knowledge_improvement_suggestions import (
     generate_improvement_suggestions, list_improvement_suggestions,
     update_improvement_suggestion,
 )
+from app.services.guided_knowledge_edit import apply_guided_knowledge_edit
 from app.services.events import record_event
 from app.schemas import (
     KnowledgeItemCreate, KnowledgeItemOut, KnowledgeItemUpdate,
@@ -42,6 +43,8 @@ from app.schemas import (
     KnowledgeImprovementSuggestionGenerateRequest,
     KnowledgeImprovementSuggestionOut,
     KnowledgeImprovementSuggestionUpdate,
+    GuidedKnowledgeEditOut,
+    GuidedKnowledgeEditRequest,
 )
 from app.models import KnowledgeItem, KnowledgeSource
 
@@ -390,6 +393,46 @@ def update_improvement_suggestion_api(
         status_code = 404 if "not found" in str(exc).lower() else 422
         raise HTTPException(status_code=status_code, detail=str(exc))
     return KnowledgeImprovementSuggestionOut.model_validate(suggestion).model_dump(mode="json")
+
+
+@router.post("/improvement-suggestions/{suggestion_id}/apply-knowledge-edit")
+def apply_guided_knowledge_edit_api(
+    suggestion_id: str,
+    req: GuidedKnowledgeEditRequest,
+    db: Session = Depends(get_db),
+    admin: str = Depends(get_admin_email),
+):
+    wid = get_current_workspace_id(db)
+    try:
+        result = apply_guided_knowledge_edit(
+            db,
+            wid,
+            suggestion_id,
+            {"patch": req.patch.model_dump(exclude_unset=True), "reindex": req.reindex},
+            actor=admin,
+        )
+        record_event(
+            db, workspace_id=wid, type="knowledge_item.guided_edit_applied",
+            source="knowledge_api", subject_type="knowledge_item",
+            subject_id=result["item"].id, actor=admin,
+            title=f"知识改进已应用: {result['item'].title}",
+            payload_json={
+                "suggestion_id": result["suggestion"].id,
+                "suggestion_type": result["suggestion"].suggestion_type,
+                "changed_fields": (result["suggestion"].metadata_json or {}).get("guided_edit", {}).get("changed_fields", []),
+                "reindex": req.reindex,
+            },
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        status_code = 404 if "not found" in str(exc).lower() else 422
+        raise HTTPException(status_code=status_code, detail=str(exc))
+    return GuidedKnowledgeEditOut(
+        item=KnowledgeItemOut.model_validate(result["item"]),
+        suggestion=KnowledgeImprovementSuggestionOut.model_validate(result["suggestion"]),
+        vector_status=result["vector_status"],
+    ).model_dump(mode="json")
 
 
 # ── Vector RAG (P6.6, declared before /{knowledge_id} to avoid path capture) ──

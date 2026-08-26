@@ -1095,6 +1095,17 @@ class KnowledgeImprovementSuggestionGenerateOut(BaseModel):
     suggestions: list[KnowledgeImprovementSuggestionOut] = Field(default_factory=list)
 
 
+class GuidedKnowledgeEditRequest(BaseModel):
+    patch: KnowledgeItemUpdate
+    reindex: bool = False
+
+
+class GuidedKnowledgeEditOut(BaseModel):
+    item: KnowledgeItemOut
+    suggestion: KnowledgeImprovementSuggestionOut
+    vector_status: KnowledgeVectorStatusOut | None = None
+
+
 # ── External Connector (P5) ──
 
 _CONNECTOR_PROVIDERS = ("mock", "email", "feishu", "wechat_work")
