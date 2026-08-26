@@ -1106,6 +1106,17 @@ class GuidedKnowledgeEditOut(BaseModel):
     vector_status: KnowledgeVectorStatusOut | None = None
 
 
+class GuidedKnowledgeCreateRequest(BaseModel):
+    item: KnowledgeItemCreate
+    reindex: bool = False
+
+
+class GuidedKnowledgeCreateOut(BaseModel):
+    item: KnowledgeItemOut
+    suggestion: KnowledgeImprovementSuggestionOut
+    vector_status: KnowledgeVectorStatusOut | None = None
+
+
 # ── External Connector (P5) ──
 
 _CONNECTOR_PROVIDERS = ("mock", "email", "feishu", "wechat_work")

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import AdminShell from "@/components/admin/admin-shell";
 import {
 	  applyGuidedKnowledgeEdit,
+	  applyGuidedKnowledgeCreate,
 	  archiveKnowledgeItem, bulkUpdateKnowledgeReviewItems, createKnowledgeItem,
 	  createKnowledgeRetrievalFeedback,
 	  generateKnowledgeImprovementSuggestions,
@@ -137,6 +138,7 @@ export default function KnowledgePage() {
 	  const [suggestionMsg, setSuggestionMsg] = useState<string | null>(null);
 	  const [suggestionSavingKey, setSuggestionSavingKey] = useState<string | null>(null);
 	  const [guidedEditId, setGuidedEditId] = useState<string | null>(null);
+	  const [guidedCreateId, setGuidedCreateId] = useState<string | null>(null);
 	  const [guidedDraft, setGuidedDraft] = useState<Draft>(emptyDraft);
 	  const [guidedReindex, setGuidedReindex] = useState(true);
 
@@ -462,6 +464,24 @@ export default function KnowledgePage() {
 	    if (!item) { setError("当前列表里没有找到这条知识，请切到 active 状态或刷新知识列表后再试"); return; }
 	    setGuidedDraft(toDraft(item));
 	    setGuidedEditId(suggestion.id);
+	    setGuidedCreateId(null);
+	    setGuidedReindex(true);
+	    setError(null);
+	  };
+
+	  const startGuidedCreate = (suggestion: KnowledgeImprovementSuggestionOut) => {
+	    const query = suggestion.evidence_json?.sample_queries?.[0] || suggestion.title.replace(/^建议新增知识[:：]\s*/, "");
+	    setGuidedDraft({
+	      title: query ? `${query} FAQ` : "新增知识",
+	      summary: suggestion.reason,
+	      content_markdown: `${suggestion.recommended_action}\n\n请在这里补充正式知识正文。`,
+	      source_type: "faq",
+	      status: "active",
+	      tags: "待补充",
+	      service_id: "",
+	    });
+	    setGuidedCreateId(suggestion.id);
+	    setGuidedEditId(null);
 	    setGuidedReindex(true);
 	    setError(null);
 	  };
@@ -477,6 +497,22 @@ export default function KnowledgePage() {
 	      loadSuggestions();
 	    } catch (e: unknown) {
 	      setError(e instanceof Error ? e.message : "应用知识编辑失败");
+	    } finally {
+	      setSuggestionSavingKey(null);
+	    }
+	  };
+
+	  const applyGuidedCreate = async (suggestionId: string) => {
+	    if (!guidedDraft.title.trim() || !guidedDraft.content_markdown.trim()) { setError("标题和正文为必填"); return; }
+	    setSuggestionSavingKey(`${suggestionId}:guided_create`); setError(null); setSuggestionMsg(null);
+	    try {
+	      const res = await applyGuidedKnowledgeCreate(suggestionId, { item: toPayload(guidedDraft), reindex: guidedReindex });
+	      setSuggestionMsg(`已新增知识：${res.item.title}${res.vector_status ? `，索引状态：${res.vector_status.status}` : ""}`);
+	      setGuidedCreateId(null);
+	      load();
+	      loadSuggestions();
+	    } catch (e: unknown) {
+	      setError(e instanceof Error ? e.message : "新增知识失败");
 	    } finally {
 	      setSuggestionSavingKey(null);
 	    }
@@ -757,6 +793,11 @@ export default function KnowledgePage() {
 	                      编辑并应用
 	                    </button>
 	                  )}
+	                  {s.suggestion_type === "create_knowledge" && (
+	                    <button className="button ghost small" disabled={suggestionSavingKey === `${s.id}:guided_create`} onClick={() => startGuidedCreate(s)}>
+	                      新增并应用
+	                    </button>
+	                  )}
 	                  <button className="button ghost small" disabled={suggestionSavingKey === `${s.id}:applied`} onClick={() => updateSuggestionStatus(s.id, "applied")}>标记已处理</button>
 	                  <button className="button ghost small" disabled={suggestionSavingKey === `${s.id}:archived`} onClick={() => updateSuggestionStatus(s.id, "archived")}>归档</button>
 	                </span>
@@ -795,6 +836,43 @@ export default function KnowledgePage() {
 	                      {suggestionSavingKey === `${s.id}:guided_edit` ? "应用中..." : "应用编辑"}
 	                    </button>
 	                    <button className="button ghost small" onClick={() => setGuidedEditId(null)}>取消</button>
+	                  </div>
+	                </div>
+	              )}
+	              {guidedCreateId === s.id && (
+	                <div className="guided-edit-box">
+	                  <div className="subform-grid">
+	                    <label className="subform-full">标题
+	                      <input value={guidedDraft.title} onChange={(e) => setGuidedDraft((d) => ({ ...d, title: e.target.value }))} />
+	                    </label>
+	                    <label>摘要
+	                      <input value={guidedDraft.summary} onChange={(e) => setGuidedDraft((d) => ({ ...d, summary: e.target.value }))} />
+	                    </label>
+	                    <label>标签
+	                      <input value={guidedDraft.tags} onChange={(e) => setGuidedDraft((d) => ({ ...d, tags: e.target.value }))} />
+	                    </label>
+	                    <label>来源类型
+	                      <select value={guidedDraft.source_type} onChange={(e) => setGuidedDraft((d) => ({ ...d, source_type: e.target.value }))}>
+	                        {KNOWLEDGE_SOURCE_TYPES.map((t) => <option key={t} value={t}>{SOURCE_TYPE_LABELS[t]}</option>)}
+	                      </select>
+	                    </label>
+	                    <label>状态
+	                      <select value={guidedDraft.status} onChange={(e) => setGuidedDraft((d) => ({ ...d, status: e.target.value }))}>
+	                        {STATUS_FILTERS.map((st) => <option key={st} value={st}>{STATUS_LABELS[st]}</option>)}
+	                      </select>
+	                    </label>
+	                    <label className="subform-full">正文
+	                      <textarea value={guidedDraft.content_markdown} onChange={(e) => setGuidedDraft((d) => ({ ...d, content_markdown: e.target.value }))} />
+	                    </label>
+	                  </div>
+	                  <label className="review-count">
+	                    <input type="checkbox" checked={guidedReindex} onChange={(e) => setGuidedReindex(e.target.checked)} /> 创建后重新索引
+	                  </label>
+	                  <div className="confirm-actions">
+	                    <button className="button primary small" disabled={suggestionSavingKey === `${s.id}:guided_create`} onClick={() => applyGuidedCreate(s.id)}>
+	                      {suggestionSavingKey === `${s.id}:guided_create` ? "创建中..." : "创建知识"}
+	                    </button>
+	                    <button className="button ghost small" onClick={() => setGuidedCreateId(null)}>取消</button>
 	                  </div>
 	                </div>
 	              )}

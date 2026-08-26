@@ -28,6 +28,7 @@ from app.services.knowledge_improvement_suggestions import (
     update_improvement_suggestion,
 )
 from app.services.guided_knowledge_edit import apply_guided_knowledge_edit
+from app.services.guided_knowledge_create import apply_guided_knowledge_create
 from app.services.events import record_event
 from app.schemas import (
     KnowledgeItemCreate, KnowledgeItemOut, KnowledgeItemUpdate,
@@ -45,6 +46,8 @@ from app.schemas import (
     KnowledgeImprovementSuggestionUpdate,
     GuidedKnowledgeEditOut,
     GuidedKnowledgeEditRequest,
+    GuidedKnowledgeCreateOut,
+    GuidedKnowledgeCreateRequest,
 )
 from app.models import KnowledgeItem, KnowledgeSource
 
@@ -429,6 +432,47 @@ def apply_guided_knowledge_edit_api(
         status_code = 404 if "not found" in str(exc).lower() else 422
         raise HTTPException(status_code=status_code, detail=str(exc))
     return GuidedKnowledgeEditOut(
+        item=KnowledgeItemOut.model_validate(result["item"]),
+        suggestion=KnowledgeImprovementSuggestionOut.model_validate(result["suggestion"]),
+        vector_status=result["vector_status"],
+    ).model_dump(mode="json")
+
+
+@router.post("/improvement-suggestions/{suggestion_id}/create-knowledge", status_code=201)
+def apply_guided_knowledge_create_api(
+    suggestion_id: str,
+    req: GuidedKnowledgeCreateRequest,
+    db: Session = Depends(get_db),
+    admin: str = Depends(get_admin_email),
+):
+    wid = get_current_workspace_id(db)
+    data = req.item.model_dump()
+    _validate_links(db, wid, data)
+    try:
+        result = apply_guided_knowledge_create(
+            db,
+            wid,
+            suggestion_id,
+            {"item": data, "reindex": req.reindex},
+            actor=admin,
+        )
+        record_event(
+            db, workspace_id=wid, type="knowledge_item.guided_create_applied",
+            source="knowledge_api", subject_type="knowledge_item",
+            subject_id=result["item"].id, actor=admin,
+            title=f"知识新增建议已应用: {result['item'].title}",
+            payload_json={
+                "suggestion_id": result["suggestion"].id,
+                "suggestion_type": result["suggestion"].suggestion_type,
+                "reindex": req.reindex,
+            },
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        status_code = 404 if "not found" in str(exc).lower() else 422
+        raise HTTPException(status_code=status_code, detail=str(exc))
+    return GuidedKnowledgeCreateOut(
         item=KnowledgeItemOut.model_validate(result["item"]),
         suggestion=KnowledgeImprovementSuggestionOut.model_validate(result["suggestion"]),
         vector_status=result["vector_status"],
