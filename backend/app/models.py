@@ -1,6 +1,9 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, Integer, DateTime, Boolean, ForeignKey, Text, JSON, Enum as SAEnum
+from sqlalchemy import (
+    String, Integer, DateTime, Boolean, ForeignKey, ForeignKeyConstraint,
+    CheckConstraint, UniqueConstraint, Text, JSON, Enum as SAEnum,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db import Base
 import enum
@@ -334,6 +337,86 @@ KNOWLEDGE_SOURCE_TYPES = (
 )
 
 KNOWLEDGE_DOCUMENT_STATUSES = ("uploaded", "processing", "processed", "failed", "archived")
+
+
+class KnowledgeEngineConnection(Base):
+    __tablename__ = "knowledge_engine_connections"
+    __table_args__ = (
+        UniqueConstraint("id", "workspace_id", name="uq_engine_connection_workspace"),
+        UniqueConstraint("id", "workspace_id", "knowledge_base_id", name="uq_engine_connection_kb"),
+        CheckConstraint("provider = 'weknora'", name="ck_engine_connection_provider"),
+        CheckConstraint("status IN ('unverified', 'ready', 'disabled')", name="ck_engine_connection_status"),
+        CheckConstraint("revision >= 1", name="ck_engine_connection_revision"),
+        CheckConstraint(
+            "status != 'ready' OR (verified_revision IS NOT NULL AND verified_revision = revision)",
+            name="ck_engine_connection_verified",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    workspace_id: Mapped[str] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True)
+    provider: Mapped[str] = mapped_column(String(20), default="weknora")
+    display_name: Mapped[str] = mapped_column(String(255))
+    endpoint_alias: Mapped[str] = mapped_column(String(120))
+    credential_ref: Mapped[str] = mapped_column(String(120))
+    knowledge_base_id: Mapped[str] = mapped_column(String(255))
+    knowledge_base_name: Mapped[str | None] = mapped_column(String(255))
+    external_tenant_id: Mapped[str | None] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(String(20), default="unverified")
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+    verified_revision: Mapped[int | None] = mapped_column(Integer)
+    verified_upstream_version: Mapped[str | None] = mapped_column(String(120))
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_error_code: Mapped[str | None] = mapped_column(String(120))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class WorkspaceKnowledgeConfig(Base):
+    __tablename__ = "workspace_knowledge_configs"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["connection_id", "workspace_id"],
+            ["knowledge_engine_connections.id", "knowledge_engine_connections.workspace_id"],
+            name="fk_workspace_knowledge_connection",
+        ),
+        CheckConstraint(
+            "(provider = 'local' AND connection_id IS NULL) OR "
+            "(provider = 'weknora' AND connection_id IS NOT NULL)",
+            name="ck_workspace_knowledge_provider",
+        ),
+        CheckConstraint("version >= 1", name="ck_workspace_knowledge_version"),
+    )
+    workspace_id: Mapped[str] = mapped_column(String(36), ForeignKey("workspaces.id"), primary_key=True)
+    provider: Mapped[str] = mapped_column(String(20), default="local")
+    connection_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class ExternalKnowledgeReference(Base):
+    __tablename__ = "external_knowledge_references"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["connection_id", "workspace_id", "knowledge_base_id"],
+            ["knowledge_engine_connections.id", "knowledge_engine_connections.workspace_id",
+             "knowledge_engine_connections.knowledge_base_id"],
+            name="fk_external_reference_connection",
+        ),
+        UniqueConstraint(
+            "workspace_id", "connection_id", "knowledge_base_id", "external_knowledge_id", "external_chunk_id",
+            name="uq_external_knowledge_reference",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    workspace_id: Mapped[str] = mapped_column(String(36), ForeignKey("workspaces.id"), index=True)
+    connection_id: Mapped[str] = mapped_column(String(36), index=True)
+    knowledge_base_id: Mapped[str] = mapped_column(String(255))
+    external_knowledge_id: Mapped[str] = mapped_column(String(255))
+    external_chunk_id: Mapped[str] = mapped_column(String(255))
+    title: Mapped[str] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
 
 class KnowledgeSource(Base):

@@ -1,5 +1,6 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from datetime import datetime
+from typing import Literal
 
 
 # ── Lead ──
@@ -978,6 +979,103 @@ class KnowledgeChangeValidationHistoryOut(BaseModel):
     knowledge_item_id: str
     items: list[KnowledgeChangeValidationHistoryItemOut] = Field(default_factory=list)
     total: int = 0
+
+
+class KnowledgeEngineConnectionCreate(BaseModel):
+    model_config = {"extra": "forbid", "str_strip_whitespace": True}
+    display_name: str = Field(default="WeKnora", min_length=1, max_length=255)
+    endpoint_alias: str = Field(min_length=1, max_length=120, pattern=r"^[a-zA-Z0-9_-]+$")
+    credential_ref: str = Field(min_length=1, max_length=120, pattern=r"^[a-zA-Z0-9_-]+$")
+    knowledge_base_id: str = Field(min_length=1, max_length=255)
+    expected_revision: int = Field(default=0, ge=0)
+
+
+class KnowledgeEngineConnectionOut(BaseModel):
+    """No raw credentials or network address in the public contract."""
+    model_config = {"from_attributes": True}
+    id: str
+    workspace_id: str
+    provider: Literal["weknora"]
+    display_name: str
+    endpoint_alias: str
+    knowledge_base_id: str
+    knowledge_base_name: str | None = None
+    status: Literal["unverified", "ready", "disabled"]
+    revision: int
+    verified_revision: int | None = None
+    verified_upstream_version: str | None = None
+    last_checked_at: datetime | None = None
+    last_error_code: str | None = None
+
+
+class WorkspaceKnowledgeConfigUpdate(BaseModel):
+    model_config = {"extra": "forbid"}
+    provider: Literal["local", "weknora"]
+    connection_id: str | None = None
+    expected_version: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def validate_connection(self):
+        if (self.provider == "local" and self.connection_id is not None) or (
+            self.provider == "weknora" and not self.connection_id
+        ):
+            raise ValueError("connection_id must be set only for weknora")
+        return self
+
+
+class KnowledgeCitationHitV2(BaseModel):
+    # Preserve existing retriever-specific score/source fields when serializing.
+    model_config = {"extra": "allow"}
+    provider: Literal["local", "weknora"]
+    reference_id: str = Field(min_length=1)
+    knowledge_item_id: str | None = None
+    external_reference_id: str | None = None
+    title: str
+    excerpt: str
+    source_type: str
+    score: float = Field(allow_inf_nan=False)
+    rank: int = Field(ge=1)
+    content_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+    retrieved_at: datetime
+
+    @model_validator(mode="after")
+    def validate_identity(self):
+        if self.provider == "local":
+            if not self.knowledge_item_id or self.external_reference_id is not None:
+                raise ValueError("local citations require only knowledge_item_id")
+            expected = f"local:{self.knowledge_item_id}"
+        else:
+            if not self.external_reference_id or self.knowledge_item_id is not None:
+                raise ValueError("external citations require only external_reference_id")
+            expected = f"external:{self.external_reference_id}"
+        if self.reference_id != expected:
+            raise ValueError("reference_id does not match provider identity")
+        return self
+
+
+class CitationPackV2(BaseModel):
+    model_config = {"extra": "allow"}
+    schema_version: Literal[2] = 2
+    provider: Literal["local", "weknora"]
+    config_version: int = Field(ge=0)
+    retriever_version: str
+    query_summary: str | None = None
+    status: Literal["ok", "empty"]
+    no_hit_reason: str | None = None
+    hit_count: int = Field(ge=0)
+    hits: list[KnowledgeCitationHitV2]
+    retrieved_at: datetime
+    latency_ms: float = Field(ge=0, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def validate_hits(self):
+        if self.hit_count != len(self.hits) or (self.status == "ok") != bool(self.hits):
+            raise ValueError("citation status and hit_count must match hits")
+        if any(hit.provider != self.provider for hit in self.hits):
+            raise ValueError("mixed providers are not supported")
+        if len({hit.reference_id for hit in self.hits}) != len(self.hits):
+            raise ValueError("duplicate citation reference")
+        return self
 
 
 # ── Knowledge Retrieval Feedback (P6.11) ──

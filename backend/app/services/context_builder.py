@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.models import KnowledgeItem, ServiceRiskRule
 from app.services.agent_context import build_opportunity_agent_context
 from app.services.service_catalog import list_services
-from app.services.knowledge_retriever import retrieve_knowledge_for_sales_reply
+from app.services.knowledge_engine import retrieve_knowledge
 from app.services.text_utils import as_text_list, overlap_score
 
 CONTEXT_BUILDER_VERSION = "context_builder.sales_reply.v1"
@@ -95,7 +95,7 @@ def build_sales_reply_context_pack(db: Session, opportunity_id: str) -> dict:
     service_ids = [s.id for s in services]
 
     # --- Knowledge: use the Retriever (P6.3 citation-aware contract) ---
-    citation_pack = retrieve_knowledge_for_sales_reply(
+    citation_pack = retrieve_knowledge(
         db, workspace_id=wid, query_text=text,
         matched_service_ids=service_ids, max_hits=MAX_KNOWLEDGE,
     )
@@ -125,6 +125,10 @@ def build_sales_reply_context_pack(db: Session, opportunity_id: str) -> dict:
     usage = {
         "used_service_ids": service_ids,
         "used_knowledge_item_ids": hit_ids,
+        "used_reference_ids": [h["reference_id"] for h in hits],
+        "used_external_reference_ids": [],
+        "knowledge_provider": citation_pack["provider"],
+        "knowledge_config_version": citation_pack["config_version"],
         "service_hit_count": service_hits,
         "knowledge_hit_count": knowledge_hits,
         "citation_count": knowledge_hits,
